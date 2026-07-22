@@ -2,14 +2,14 @@ const STORAGE_KEY = "galera-da-pelada-2026";
 
 const starterData = {
   players: [
-    { id: "p1", name: "João Pedro", nickname: "JP", position: "Atacante", photo: "" },
-    { id: "p2", name: "Matheus Alves", nickname: "M7", position: "Meia", photo: "" },
-    { id: "p3", name: "Rafael Costa", nickname: "Rafa", position: "Goleiro", photo: "" },
-    { id: "p4", name: "Diego Martins", nickname: "D10", position: "Meia", photo: "" },
-    { id: "p5", name: "Lucas Oliveira", nickname: "Luquinhas", position: "Atacante", photo: "" },
-    { id: "p6", name: "Bruno Souza", nickname: "Brunão", position: "Defensor", photo: "" },
-    { id: "p7", name: "Gustavo Lima", nickname: "Guga", position: "Defensor", photo: "" },
-    { id: "p8", name: "André Silva", nickname: "Dé", position: "Goleiro", photo: "" }
+    { id: "p1", name: "Almir", número: "", position: "Zagueiro", photo: "" },
+    { id: "p2", name: "Anderson", número: "", position: "Zagueiro", photo: "" },
+    { id: "p3", name: "Allerf", número: "", position: "Zagueiro", photo: "" },
+    { id: "p4", name: "Fabinho", número: "", position: "Meia", photo: "" },
+    { id: "p5", name: "Fabio", número: "Luquinhas", position: "Atacante", photo: "" },
+    { id: "p6", name: "Bruno Souza", número: "Brunão", position: "Defensor", photo: "" },
+    { id: "p7", name: "Gustavo Lima", número: "Guga", position: "Defensor", photo: "" },
+    { id: "p8", name: "André Silva", número: "Dé", position: "Goleiro", photo: "" }
   ],
   games: [
     {
@@ -100,7 +100,7 @@ const rankingDetails = {
   craque: { title: "Craque", kicker: "VEZES CRAQUE DA RODADA", singular: "VEZ", plural: "VEZES" },
   xerife: { title: "Xerife", kicker: "DESTAQUES DEFENSIVOS", singular: "VEZ", plural: "VEZES" },
   paredao: { title: "Paredão", kicker: "GOLEIROS DA RODADA", singular: "VEZ", plural: "VEZES" },
-  defesas: { title: "Defesas", kicker: "DEFESAS REGISTRADAS", singular: "DEFESA", plural: "DEFESAS", source: "saves" }
+  
 };
 function renderRanking() {
   const details = rankingDetails[selectedRanking]; const metric = details.source || selectedRanking;
