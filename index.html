@@ -23,7 +23,7 @@
         <button class="nav-link active" data-view-target="inicio">Início</button>
         <button class="nav-link" data-view-target="rankings">Rankings</button>
         <button class="nav-link" data-view-target="atletas">Atletas</button>
-        <button class="nav-link" data-view-target="admin">Admin</button>
+        <button id="admin-access-button" class="nav-link" type="button"><span id="admin-nav-label">Entrar</span></button>
       </nav>
       <div class="season-chip"><span></span> Temporada 2026</div>
     </header>
@@ -37,7 +37,7 @@
             <p class="hero-text">veja todos os rankings da temporada 2026 artilheiro, garçom, craque, xerife e paredão </p>
             <div class="hero-actions">
               <button class="button primary" data-view-target="rankings">Ver rankings <span>→</span></button>
-              <button class="text-button" data-view-target="admin">+ Lançar rodada</button>
+              <button class="text-button" data-admin-access type="button">+ Lançar rodada</button>
             </div>
           </div>
           <div class="hero-visual">
@@ -82,7 +82,7 @@
       <section id="rankings" class="view section-wrap" aria-labelledby="ranking-title">
         <div class="page-heading">
           <div><p class="eyebrow">TEMPORADA 2026</p><h1 id="ranking-title">Rankings da galera</h1><p>Os números acumulados de todas as rodadas.</p></div>
-          <button class="button primary" data-view-target="admin">Lançar rodada <span>+</span></button>
+          <button class="button primary" data-admin-access type="button">Lançar rodada <span>+</span></button>
         </div>
         <div class="ranking-tabs" role="tablist" aria-label="Tipo de ranking">
           <button class="ranking-tab active" data-ranking="goals" role="tab">Artilharia</button>
@@ -101,7 +101,7 @@
       <section id="atletas" class="view section-wrap" aria-labelledby="athletes-title">
         <div class="page-heading athletes-heading">
           <div><p class="eyebrow">O ELENCO</p><h1 id="athletes-title">Nossos atletas</h1><p>O card de cada membro da Galera da Pelada em 2026.</p></div>
-          <button class="button primary" data-view-target="admin">Cadastrar atleta <span>+</span></button>
+          <button class="button primary" data-admin-access type="button">Cadastrar atleta <span>+</span></button>
         </div>
         <div class="filter-row"><label class="search-box"><span>⌕</span><input id="player-search" type="search" placeholder="Buscar por nome ou apelido" /></label><span id="roster-count" class="mini-label"></span></div>
         <div id="athletes-grid" class="athletes-grid"></div>
@@ -110,7 +110,7 @@
       <section id="admin" class="view section-wrap" aria-labelledby="admin-title">
         <div class="page-heading">
           <div><p class="eyebrow">ÁREA DO ORGANIZADOR</p><h1 id="admin-title">Central da rodada</h1><p>Cadastre atletas, fotos e estatísticas oficiais da temporada.</p></div>
-          <span class="admin-badge">● ADMINISTRADOR</span>
+          <div class="admin-session"><span class="admin-badge">● ADMINISTRADOR</span><button id="admin-logout" class="text-button" type="button">Sair</button></div>
         </div>
         <div class="admin-notice"><span>✦</span><p>Aqui somente o organizador lança os dados. Os rankings são recalculados automaticamente quando uma rodada é salva.</p></div>
         <div class="admin-grid">
@@ -140,12 +140,30 @@
             </form>
           </article>
         </div>
-        <article class="data-card"><div><h2>Dados da temporada</h2><p>Use este recurso apenas para recomeçar os exemplos de demonstração.</p></div><button id="reset-data" class="button danger" type="button">Restaurar dados de exemplo</button></article>
+        <article class="data-card roster-manager"><div><h2>Gerenciar atletas</h2><p>Exclua somente cadastros que não devem mais aparecer no elenco.</p></div><div id="admin-players-list" class="admin-players-list"></div></article>
       </section>
     </main>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <div id="login-modal" class="login-modal" hidden>
+      <div class="login-backdrop" data-close-login></div>
+      <section class="login-card" role="dialog" aria-modal="true" aria-labelledby="login-title">
+        <button class="login-close" type="button" data-close-login aria-label="Fechar">×</button>
+        <span class="login-shield">GP</span>
+        <p class="eyebrow">ÁREA RESTRITA</p>
+        <h2 id="login-title">Entrar como administrador</h2>
+        <p>Use o e-mail autorizado para lançar rodadas e gerenciar os atletas.</p>
+        <form id="login-form" class="form-stack">
+          <label>E-mail<input id="login-email" type="email" autocomplete="email" required placeholder="seuemail@exemplo.com" /></label>
+          <label>Senha<input id="login-password" type="password" autocomplete="current-password" required minlength="8" placeholder="Sua senha" /></label>
+          <p id="login-error" class="login-error" role="alert"></p>
+          <button class="button primary" type="submit">Entrar <span>→</span></button>
+        </form>
+      </section>
+    </div>
     <footer><span>GALERA DA PELADA</span> <i></i> DESDE 2016 <small>• Temporada 2026</small></footer>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
