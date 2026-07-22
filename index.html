@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#07150f" />
+    <title>Galera da Pelada — Desde 2016</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+
+    <header class="topbar">
+      <a class="brand" href="#inicio" aria-label="Ir para o início">
+        <span class="brand-mark"><img src="assets/escudo-moderno-gpfc.png" alt="Escudo da Galera da Pelada" /></span>
+        <span><strong>GALERA DA PELADA</strong><small>DESDE 2016</small></span>
+      </a>
+      <nav class="main-nav" aria-label="Navegação principal">
+        <button class="nav-link active" data-view-target="inicio">Início</button>
+        <button class="nav-link" data-view-target="rankings">Rankings</button>
+        <button class="nav-link" data-view-target="atletas">Atletas</button>
+        <button class="nav-link" data-view-target="admin">Admin</button>
+      </nav>
+      <div class="season-chip"><span></span> Temporada 2026</div>
+    </header>
+
+    <main>
+      <section id="inicio" class="view active-view" aria-labelledby="hero-title">
+        <div class="hero grid-lines">
+          <div class="hero-copy">
+            <p class="eyebrow">A BOLA ROLA. A HISTÓRIA FICA.</p>
+            <h1 id="hero-title">A casa oficial<br />da <em>resenha.</em></h1>
+            <p class="hero-text">Todos os gols, defesas, assistências e destaques da Galera da Pelada em uma única temporada.</p>
+            <div class="hero-actions">
+              <button class="button primary" data-view-target="rankings">Ver rankings <span>→</span></button>
+              <button class="text-button" data-view-target="admin">+ Lançar rodada</button>
+            </div>
+          </div>
+          <div class="hero-visual">
+            <div class="electric-aura" aria-hidden="true"></div>
+            <img class="hero-crest" src="assets/escudo-moderno-gpfc.png" alt="Escudo metálico da Galera da Pelada" />
+            <div class="hero-scoreboard">
+              <p>ÚLTIMA RODADA</p>
+              <div id="latest-score" class="scoreboard-content"></div>
+              <button class="link-arrow" data-view-target="rankings">Ver detalhes <span>↗</span></button>
+            </div>
+          </div>
+        </div>
+
+        <section class="section-wrap stat-strip" aria-label="Resumo da temporada">
+          <article><span class="stat-label">RODADAS</span><strong id="total-games">0</strong><small>em 2026</small></article>
+          <article><span class="stat-label">ATLETAS</span><strong id="total-players">0</strong><small>no elenco</small></article>
+          <article><span class="stat-label">GOLS</span><strong id="total-goals">0</strong><small>marcados</small></article>
+          <article><span class="stat-label">MÉDIA</span><strong id="goal-average">0</strong><small>gols por rodada</small></article>
+        </section>
+
+        <section class="section-wrap section-heading-row" aria-labelledby="week-title">
+          <div>
+            <p class="eyebrow">A SELEÇÃO DA RODADA</p>
+            <h2 id="week-title">Quem brilhou nesta semana</h2>
+          </div>
+          <button class="text-button" data-view-target="rankings">Ver todos os rankings <span>→</span></button>
+        </section>
+        <section id="weekly-awards" class="section-wrap awards-grid" aria-label="Destaques semanais"></section>
+
+        <section class="section-wrap two-columns">
+          <div class="panel recent-panel">
+            <div class="panel-heading"><h2>Últimas rodadas</h2><button class="text-button" data-view-target="rankings">Histórico <span>→</span></button></div>
+            <div id="recent-games" class="recent-games"></div>
+          </div>
+          <div class="panel record-panel">
+            <div class="panel-heading"><h2>Recordes de 2026</h2><span class="mini-label">ATÉ AGORA</span></div>
+            <div id="records" class="record-list"></div>
+          </div>
+        </section>
+      </section>
+
+      <section id="rankings" class="view section-wrap" aria-labelledby="ranking-title">
+        <div class="page-heading">
+          <div><p class="eyebrow">TEMPORADA 2026</p><h1 id="ranking-title">Rankings da galera</h1><p>Os números acumulados de todas as rodadas.</p></div>
+          <button class="button primary" data-view-target="admin">Lançar rodada <span>+</span></button>
+        </div>
+        <div class="ranking-tabs" role="tablist" aria-label="Tipo de ranking">
+          <button class="ranking-tab active" data-ranking="goals" role="tab">Artilharia</button>
+          <button class="ranking-tab" data-ranking="assists" role="tab">Assistências</button>
+          <button class="ranking-tab" data-ranking="craque" role="tab">Craque</button>
+          <button class="ranking-tab" data-ranking="xerife" role="tab">Xerife</button>
+          <button class="ranking-tab" data-ranking="paredao" role="tab">Paredão</button>
+          <button class="ranking-tab" data-ranking="defesas" role="tab">Defesas</button>
+        </div>
+        <div class="ranking-panel">
+          <div class="ranking-title-row"><div><span id="ranking-kicker" class="eyebrow">GOLS MARCADOS</span><h2 id="ranking-name">Artilharia</h2></div><span class="mini-label">ATUALIZADO APÓS A ÚLTIMA RODADA</span></div>
+          <div id="ranking-list" class="ranking-list"></div>
+        </div>
+      </section>
+
+      <section id="atletas" class="view section-wrap" aria-labelledby="athletes-title">
+        <div class="page-heading athletes-heading">
+          <div><p class="eyebrow">O ELENCO</p><h1 id="athletes-title">Nossos atletas</h1><p>O card de cada membro da Galera da Pelada em 2026.</p></div>
+          <button class="button primary" data-view-target="admin">Cadastrar atleta <span>+</span></button>
+        </div>
+        <div class="filter-row"><label class="search-box"><span>⌕</span><input id="player-search" type="search" placeholder="Buscar por nome ou apelido" /></label><span id="roster-count" class="mini-label"></span></div>
+        <div id="athletes-grid" class="athletes-grid"></div>
+      </section>
+
+      <section id="admin" class="view section-wrap" aria-labelledby="admin-title">
+        <div class="page-heading">
+          <div><p class="eyebrow">ÁREA DO ORGANIZADOR</p><h1 id="admin-title">Central da rodada</h1><p>Cadastre atletas, fotos e estatísticas oficiais da temporada.</p></div>
+          <span class="admin-badge">● ADMINISTRADOR</span>
+        </div>
+        <div class="admin-notice"><span>✦</span><p>Aqui somente o organizador lança os dados. Os rankings são recalculados automaticamente quando uma rodada é salva.</p></div>
+        <div class="admin-grid">
+          <article class="admin-card">
+            <div class="admin-card-heading"><span class="step">01</span><div><h2>Novo atleta</h2><p>Cadastre o jogador e envie sua foto para o card.</p></div></div>
+            <form id="player-form" class="form-stack">
+              <div class="photo-upload">
+                <div id="photo-preview" class="photo-preview">+</div>
+                <label class="upload-control">Escolher foto<input id="player-photo" type="file" accept="image/*" /></label>
+              </div>
+              <label>Nome completo<input id="player-name" required maxlength="42" placeholder="Ex.: João da Silva" /></label>
+              <div class="form-row"><label>Apelido<input id="player-nickname" maxlength="20" placeholder="Ex.: Jota" /></label><label>Posição<select id="player-position"><option>Atacante</option><option>Meia</option><option>Defensor</option><option>Goleiro</option><option>Versátil</option></select></label></div>
+              <button class="button primary" type="submit">Salvar atleta <span>→</span></button>
+            </form>
+          </article>
+
+          <article class="admin-card game-card">
+            <div class="admin-card-heading"><span class="step">02</span><div><h2>Lançar rodada</h2><p>Registre o placar e a atuação de cada jogador.</p></div></div>
+            <form id="game-form" class="form-stack">
+              <div class="form-row"><label>Data da rodada<input id="game-date" required type="date" /></label><label>Local / quadra<input id="game-place" maxlength="32" placeholder="Ex.: Arena da Vila" /></label></div>
+              <div class="score-form">
+                <label>Time 1<input id="team-home" required maxlength="18" value="Time Verde" /></label><input id="score-home" required type="number" min="0" value="0" aria-label="Gols do time 1" /><span>×</span><input id="score-away" required type="number" min="0" value="0" aria-label="Gols do time 2" /><label>Time 2<input id="team-away" required maxlength="18" value="Time Preto" /></label>
+              </div>
+              <div class="players-entry-heading"><div><strong>Estatísticas individuais</strong><small>Marque quem jogou e preencha os dados.</small></div><span class="legend"><i class="legend-craque"></i> destaque da rodada</span></div>
+              <div id="game-player-fields" class="game-player-fields"></div>
+              <button class="button primary" type="submit">Salvar rodada e atualizar ranking <span>→</span></button>
+            </form>
+          </article>
+        </div>
+        <article class="data-card"><div><h2>Dados da temporada</h2><p>Use este recurso apenas para recomeçar os exemplos de demonstração.</p></div><button id="reset-data" class="button danger" type="button">Restaurar dados de exemplo</button></article>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <footer><span>GALERA DA PELADA</span> <i></i> DESDE 2016 <small>• Temporada 2026</small></footer>
+    <script src="app.js"></script>
+  </body>
+</html>
