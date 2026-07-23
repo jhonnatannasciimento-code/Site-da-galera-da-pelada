@@ -131,13 +131,15 @@
             <div class="admin-card-heading"><span class="step">02</span><div><h2>Lançar rodada</h2><p>Registre o placar e a atuação de cada jogador.</p></div></div>
             <form id="game-form" class="form-stack">
               <div class="form-row"><label>Data da rodada<input id="game-date" required type="date" /></label><label>Local / quadra<input id="game-place" maxlength="32" placeholder="Ex.: Arena da Vila" /></label></div>
+              <div class="match-score-heading"><span class="mini-label">CONFRONTO</span><button id="new-game-button" class="icon-action tooltip-button" type="button" data-tooltip="Adicionar novo confronto" aria-label="Adicionar novo confronto">+</button></div>
               <div class="score-form">
                 <label>Time 1<input id="team-home" required maxlength="18" value="Time Verde" /></label><input id="score-home" required type="number" min="0" value="0" aria-label="Gols do time 1" /><span>×</span><input id="score-away" required type="number" min="0" value="0" aria-label="Gols do time 2" /><label>Time 2<input id="team-away" required maxlength="18" value="Time Preto" /></label>
               </div>
-              <div class="players-entry-heading"><div><strong>Estatísticas individuais</strong><small>Marque quem jogou e preencha os dados.</small></div><span class="legend"><i class="legend-craque"></i> destaque da rodada</span></div>
+              <div class="players-entry-heading"><div><strong>Estatísticas individuais</strong><small>Escolha o time de cada atleta. Use 1 para registrar uma premiação na rodada.</small></div><span class="legend"><i class="legend-craque"></i> G · A · C · X · P</span></div>
               <div id="game-player-fields" class="game-player-fields"></div>
-              <button class="button primary" type="submit">Salvar rodada e atualizar ranking <span>→</span></button>
+              <div class="game-form-actions"><button id="cancel-game-edit" class="button secondary" type="button" hidden>Cancelar edição</button><button id="game-submit" class="button primary" type="submit">Salvar rodada e atualizar ranking <span>→</span></button></div>
             </form>
+            <section class="saved-games-section" aria-label="Confrontos salvos"><div class="players-entry-heading"><div><strong>Confrontos salvos</strong><small>Veja os times, placar e participações. Use Editar para corrigir.</small></div></div><div id="saved-games-list" class="saved-games-list"></div></section>
           </article>
 
           <article class="admin-card adjustment-card">
@@ -156,7 +158,7 @@
             </form>
           </article>
         </div>
-        <article class="data-card roster-manager"><div><h2>Gerenciar atletas</h2><p>Troque a foto quando quiser. Exclua somente cadastros que não devem mais aparecer no elenco.</p></div><div id="admin-players-list" class="admin-players-list"></div><input id="existing-player-photo" type="file" accept="image/jpeg,image/png,image/webp" hidden /></article>
+        <article class="data-card roster-manager"><div><h2>Gerenciar atletas</h2><p>Use Editar para alterar nome, camisa, posição, foto e estatísticas da temporada.</p></div><div id="admin-players-list" class="admin-players-list"></div></article>
       </section>
     </main>
 
@@ -174,6 +176,24 @@
           <label>Senha<input id="login-password" type="password" autocomplete="current-password" required minlength="8" placeholder="Sua senha" /></label>
           <p id="login-error" class="login-error" role="alert"></p>
           <button class="button primary" type="submit">Entrar <span>→</span></button>
+        </form>
+      </section>
+    </div>
+    <div id="player-edit-modal" class="login-modal player-edit-modal" hidden>
+      <div class="login-backdrop" data-close-player-edit></div>
+      <section class="login-card player-edit-card" role="dialog" aria-modal="true" aria-labelledby="player-edit-title">
+        <button class="login-close" type="button" data-close-player-edit aria-label="Fechar">×</button>
+        <p class="eyebrow">GERENCIAR ATLETA</p>
+        <h2 id="player-edit-title">Editar atleta</h2>
+        <p>Você pode corrigir os dados e definir o total desejado para a temporada 2026.</p>
+        <form id="player-edit-form" class="form-stack">
+          <input id="edit-player-id" type="hidden" />
+          <div class="photo-upload"><div id="edit-photo-preview" class="photo-preview">+</div><label class="upload-control" data-tooltip="Envie JPG, PNG ou WEBP de até 2,5 MB.">Trocar foto<input id="edit-player-photo" type="file" accept="image/jpeg,image/png,image/webp" /></label></div>
+          <label>Nome<input id="edit-player-name" required maxlength="42" /></label>
+          <div class="form-row"><label>Número da camisa<input id="edit-player-shirt-number" required type="number" min="0" max="99" inputmode="numeric" /></label><label>Posição<select id="edit-player-position"><option>Atacante</option><option>Meia</option><option>Zagueiro</option><option>Goleiro</option><option>Versátil</option></select></label></div>
+          <div><strong class="form-subtitle">Estatísticas da temporada</strong><p class="form-help">As rodadas já registradas continuam preservadas.</p></div>
+          <div class="adjustment-fields edit-stats-fields"><label>Gols<input id="edit-player-goals" type="number" min="0" value="0" inputmode="numeric" /></label><label>Assistências<input id="edit-player-assists" type="number" min="0" value="0" inputmode="numeric" /></label><label>Craque<input id="edit-player-craque" type="number" min="0" value="0" inputmode="numeric" /></label><label>Xerife<input id="edit-player-xerife" type="number" min="0" value="0" inputmode="numeric" /></label><label>Paredão<input id="edit-player-paredao" type="number" min="0" value="0" inputmode="numeric" /></label></div>
+          <button class="button primary" type="submit">Salvar alterações <span>→</span></button>
         </form>
       </section>
     </div>
