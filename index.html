@@ -96,11 +96,20 @@
           <div class="ranking-title-row"><div><span id="ranking-kicker" class="eyebrow">GOLS MARCADOS</span><h2 id="ranking-name">Artilharia</h2></div><span class="mini-label">ATUALIZADO APÓS A ÚLTIMA RODADA</span></div>
           <div id="ranking-list" class="ranking-list"></div>
         </div>
+        <div class="ranking-panel complete-ranking-panel">
+          <div class="ranking-title-row"><div><span class="eyebrow">PANORAMA DA TEMPORADA</span><h2>Ranking completo</h2></div><span class="mini-label">TODAS AS ESTATÍSTICAS JUNTAS</span></div>
+          <div class="complete-ranking-scroll">
+            <table class="complete-ranking-table">
+              <thead><tr><th>POS.</th><th>ATLETA</th><th>JOGOS</th><th>GOLS</th><th>ASSIST.</th><th>CRAQUE</th><th>XERIFE</th><th>PAREDÃO</th></tr></thead>
+              <tbody id="complete-ranking-list"></tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       <section id="atletas" class="view section-wrap" aria-labelledby="athletes-title">
         <div class="page-heading athletes-heading">
-          <div><p class="eyebrow">O ELENCO</p><h1 id="athletes-title">Nossos atletas</h1><p>O card de cada membro da Galera da Pelada em 2026.</p></div>
+          <div><p class="eyebrow">O ELENCO</p><h1 id="athletes-title">Atletas do G.P.F.C</h1><p id="roster-summary">Carregando o elenco da temporada 2026.</p></div>
           <button class="button primary" data-admin-access type="button">Cadastrar atleta <span>+</span></button>
         </div>
         <div class="filter-row"><label class="search-box"><span>⌕</span><input id="player-search" type="search" placeholder="Buscar por nome ou apelido" /></label><span id="roster-count" class="mini-label"></span></div>
@@ -147,6 +156,7 @@
             <form id="adjustment-form" class="form-stack">
               <label>Atleta<select id="adjustment-player" required></select></label>
               <div class="adjustment-fields">
+                <label>Jogos<input id="adjustment-games" type="number" min="0" value="0" inputmode="numeric" /></label>
                 <label>Gols<input id="adjustment-goals" type="number" min="0" value="0" inputmode="numeric" /></label>
                 <label>Assistências<input id="adjustment-assists" type="number" min="0" value="0" inputmode="numeric" /></label>
                 <label>Craque<input id="adjustment-craque" type="number" min="0" value="0" inputmode="numeric" /></label>
@@ -192,7 +202,7 @@
           <label>Nome<input id="edit-player-name" required maxlength="42" /></label>
           <div class="form-row"><label>Número da camisa<input id="edit-player-shirt-number" required type="number" min="0" max="99" inputmode="numeric" /></label><label>Posição<select id="edit-player-position"><option>Atacante</option><option>Meia</option><option>Zagueiro</option><option>Goleiro</option><option>Versátil</option></select></label></div>
           <div><strong class="form-subtitle">Estatísticas da temporada</strong><p class="form-help">As rodadas já registradas continuam preservadas.</p></div>
-          <div class="adjustment-fields edit-stats-fields"><label>Gols<input id="edit-player-goals" type="number" min="0" value="0" inputmode="numeric" /></label><label>Assistências<input id="edit-player-assists" type="number" min="0" value="0" inputmode="numeric" /></label><label>Craque<input id="edit-player-craque" type="number" min="0" value="0" inputmode="numeric" /></label><label>Xerife<input id="edit-player-xerife" type="number" min="0" value="0" inputmode="numeric" /></label><label>Paredão<input id="edit-player-paredao" type="number" min="0" value="0" inputmode="numeric" /></label></div>
+          <div class="adjustment-fields edit-stats-fields"><label>Jogos<input id="edit-player-games" type="number" min="0" value="0" inputmode="numeric" /></label><label>Gols<input id="edit-player-goals" type="number" min="0" value="0" inputmode="numeric" /></label><label>Assistências<input id="edit-player-assists" type="number" min="0" value="0" inputmode="numeric" /></label><label>Craque<input id="edit-player-craque" type="number" min="0" value="0" inputmode="numeric" /></label><label>Xerife<input id="edit-player-xerife" type="number" min="0" value="0" inputmode="numeric" /></label><label>Paredão<input id="edit-player-paredao" type="number" min="0" value="0" inputmode="numeric" /></label></div>
           <button class="button primary" type="submit">Salvar alterações <span>→</span></button>
         </form>
       </section>

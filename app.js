@@ -5,6 +5,7 @@ const supabaseClient = window.supabase.createClient(
 
 const SEASON = 2026;
 const STAT_FIELDS = ["goals", "assists", "craque", "xerife", "paredao"];
+const ADJUSTMENT_FIELDS = ["games", ...STAT_FIELDS];
 let data = { players: [], games: [], adjustments: {} };
 let selectedRanking = "goals";
 let pendingPhotoFile = null;
@@ -19,7 +20,9 @@ function initials(player) {
 }
 function displayName(player) { return player?.name || "Atleta"; }
 function shirtNumber(player) {
-  return player?.shirtNumber === null || player?.shirtNumber === undefined || player?.shirtNumber === "" ? "—" : player.shirtNumber;
+  const value = player?.shirtNumber;
+  if (value === 0 || value === "0") return "00";
+  return value === null || value === undefined || value === "" ? "—" : value;
 }
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>'"]/g, character => ({
@@ -50,10 +53,13 @@ function getGameTotals(playerId) {
   }));
   return totals;
 }
+function getRecordedGameCount(playerId) {
+  return data.games.reduce((total, game) => total + (game.stats.some(entry => entry.playerId === playerId) ? 1 : 0), 0);
+}
 function getStats() {
   const totals = Object.fromEntries(data.players.map(player => [player.id, {
     player,
-    games: 0,
+    games: number(data.adjustments[player.id]?.games),
     goals: number(data.adjustments[player.id]?.goals),
     assists: number(data.adjustments[player.id]?.assists),
     saves: 0,
@@ -88,10 +94,10 @@ function awardInfo(key) {
   }[key];
 }
 function cardStatItems(item) {
-  const position = String(item.player.position || "").toLocaleLowerCase("pt-BR");
-  if (position.includes("goleiro")) return [["PAREDÃO", item.paredao], ["CRAQUE", item.craque]];
+  if (isGoalkeeper(item.player)) return [["PAREDÃO", item.paredao], ["CRAQUE", item.craque]];
   return [["GOLS", item.goals], ["ASSIST.", item.assists], ["CRAQUE", item.craque], ["XERIFE", item.xerife]];
 }
+function isGoalkeeper(player) { return String(player?.position || "").toLocaleLowerCase("pt-BR").includes("goleiro"); }
 function cardStatsMarkup(item) {
   const items = cardStatItems(item);
   return `<div class="card-stats card-stats-${items.length}">${items.map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("")}</div>`;
@@ -149,13 +155,25 @@ function renderRanking() {
   document.querySelector("#ranking-list").innerHTML = items.length ? items.map((item, index) =>
     `<article class="rank-row"><span class="rank-position">${String(index + 1).padStart(2, "0")}</span>${avatar(item.player)}<div class="rank-player"><strong>${escapeHtml(displayName(item.player))}</strong><small>#${shirtNumber(item.player)} · ${escapeHtml(item.player.position)} · ${item.games} ${item.games === 1 ? "jogo" : "jogos"}</small></div><span class="rank-meta">${item.goals} gols · ${item.assists} assist.</span><span class="rank-value">${item[selectedRanking]}<small>${item[selectedRanking] === 1 ? details.singular : details.plural}</small></span></article>`
   ).join("") : `<div class="empty-state">Ainda não existem dados nesta categoria.</div>`;
+  renderCompleteRanking(getStats());
+}
+function renderCompleteRanking(stats) {
+  const items = [...stats].sort((a, b) =>
+    b.goals - a.goals || b.assists - a.assists || b.craque - a.craque || b.xerife - a.xerife || b.paredao - a.paredao || b.games - a.games || displayName(a.player).localeCompare(displayName(b.player))
+  );
+  document.querySelector("#complete-ranking-list").innerHTML = items.length ? items.map((item, index) =>
+    `<tr><td class="complete-rank-position">${String(index + 1).padStart(2, "0")}</td><td><div class="complete-rank-player">${avatar(item.player)}<span><strong>${escapeHtml(displayName(item.player))}</strong><small>#${shirtNumber(item.player)} · ${escapeHtml(item.player.position)}</small></span></div></td><td>${item.games}</td><td>${item.goals}</td><td>${item.assists}</td><td>${item.craque}</td><td>${item.xerife}</td><td>${item.paredao}</td></tr>`
+  ).join("") : `<tr><td class="complete-ranking-empty" colspan="8">Ainda não existem atletas cadastrados.</td></tr>`;
 }
 function renderPlayers(filter = "") {
   const text = filter.trim().toLocaleLowerCase("pt-BR");
-  const players = getStats().filter(item => !text || `${item.player.name} ${item.player.shirtNumber}`.toLocaleLowerCase("pt-BR").includes(text)).sort((a, b) => displayName(a.player).localeCompare(displayName(b.player)));
+  const allPlayers = getStats();
+  const goalkeepers = allPlayers.filter(item => isGoalkeeper(item.player)).length;
+  document.querySelector("#roster-summary").textContent = `${allPlayers.length} ${allPlayers.length === 1 ? "atleta" : "atletas"} no elenco, incluindo ${goalkeepers} ${goalkeepers === 1 ? "goleiro" : "goleiros"} na temporada 2026.`;
+  const players = allPlayers.filter(item => !text || `${item.player.name} ${item.player.shirtNumber}`.toLocaleLowerCase("pt-BR").includes(text)).sort((a, b) => displayName(a.player).localeCompare(displayName(b.player)));
   document.querySelector("#roster-count").textContent = `${players.length} ${players.length === 1 ? "ATLETA" : "ATLETAS"}`;
   document.querySelector("#athletes-grid").innerHTML = players.map(item =>
-    `<article class="athlete-card"><div class="card-image">${avatar(item.player)}</div><div class="card-top"><span>GP • 2026</span><span class="athlete-number">#${shirtNumber(item.player)}</span></div><div class="card-bottom"><h2>${escapeHtml(displayName(item.player))}</h2><p>${escapeHtml(item.player.position)}</p>${cardStatsMarkup(item)}</div></article>`
+    `<article class="athlete-card"><div class="card-image">${avatar(item.player)}</div><div class="card-top"><span>GP • 2026</span><span class="athlete-number">#${shirtNumber(item.player)}</span></div><div class="card-bottom"><h2>${escapeHtml(displayName(item.player))}</h2><p>${escapeHtml(item.player.position)}</p><span class="card-games">${item.games} ${item.games === 1 ? "jogo disputado" : "jogos disputados"}</span>${cardStatsMarkup(item)}</div></article>`
   ).join("") || `<div class="empty-state">Nenhum atleta cadastrado ainda.</div>`;
 }
 function renderGameFields() {
@@ -208,7 +226,7 @@ function renderAdjustmentForm() {
 function fillAdjustmentFields() {
   const playerId = document.querySelector("#adjustment-player")?.value;
   const adjustment = data.adjustments[playerId] || {};
-  STAT_FIELDS.forEach(field => { document.querySelector(`#adjustment-${field}`).value = number(adjustment[field]); });
+  ADJUSTMENT_FIELDS.forEach(field => { document.querySelector(`#adjustment-${field}`).value = number(adjustment[field]); });
 }
 function updateGameFormState() {
   const editing = Boolean(editingGameId);
@@ -339,7 +357,7 @@ function openPlayerEdit(playerId) {
   document.querySelector("#edit-player-name").value = player.name;
   document.querySelector("#edit-player-shirt-number").value = player.shirtNumber ?? "";
   document.querySelector("#edit-player-position").value = player.position;
-  STAT_FIELDS.forEach(field => { document.querySelector(`#edit-player-${field}`).value = number(stats[field]); });
+  ADJUSTMENT_FIELDS.forEach(field => { document.querySelector(`#edit-player-${field}`).value = number(stats[field]); });
   previewPhoto(document.querySelector("#edit-photo-preview"), player);
   pendingEditPhotoFile = null;
   document.querySelector("#edit-player-photo").value = "";
@@ -471,7 +489,7 @@ document.querySelector("#adjustment-form").addEventListener("submit", async even
   if (!requireAdmin()) return;
   const playerId = document.querySelector("#adjustment-player").value;
   if (!playerId) { toast("Cadastre um atleta antes de salvar o saldo histórico."); return; }
-  const payload = Object.fromEntries(STAT_FIELDS.map(field => [field, number(document.querySelector(`#adjustment-${field}`).value)]));
+  const payload = Object.fromEntries(ADJUSTMENT_FIELDS.map(field => [field, number(document.querySelector(`#adjustment-${field}`).value)]));
   const { error } = await supabaseClient.from("player_season_adjustments").upsert({
     player_id: playerId, season: SEASON, ...payload, updated_at: new Date().toISOString()
   }, { onConflict: "player_id,season" });
@@ -498,9 +516,11 @@ document.querySelector("#player-edit-form").addEventListener("submit", async eve
   const player = data.players.find(item => item.id === playerId);
   if (!player) return;
   const wantedTotals = Object.fromEntries(STAT_FIELDS.map(field => [field, number(document.querySelector(`#edit-player-${field}`).value)]));
+  const wantedGames = number(document.querySelector("#edit-player-games").value);
   const registeredGames = getGameTotals(playerId);
   const impossibleField = STAT_FIELDS.find(field => wantedTotals[field] < registeredGames[field]);
   if (impossibleField) { toast("Esse total é menor do que o já registrado nas rodadas. Edite o confronto para reduzir esse número."); return; }
+  if (wantedGames < getRecordedGameCount(playerId)) { toast("Esse total de jogos é menor do que o já registrado nas rodadas. Edite o confronto para reduzir esse número."); return; }
   let photoUrl = player.photo;
   try {
     if (pendingEditPhotoFile) photoUrl = await uploadPlayerPhoto(playerId, pendingEditPhotoFile);
@@ -517,7 +537,10 @@ document.querySelector("#player-edit-form").addEventListener("submit", async eve
     photo_url: photoUrl
   }).eq("id", playerId);
   if (playerError) { toast(`Não foi possível editar o atleta: ${playerError.message}`); return; }
-  const historicalBalance = Object.fromEntries(STAT_FIELDS.map(field => [field, wantedTotals[field] - registeredGames[field]]));
+  const historicalBalance = {
+    games: wantedGames - getRecordedGameCount(playerId),
+    ...Object.fromEntries(STAT_FIELDS.map(field => [field, wantedTotals[field] - registeredGames[field]]))
+  };
   const { error: statsError } = await supabaseClient.from("player_season_adjustments").upsert({
     player_id: playerId, season: SEASON, ...historicalBalance, updated_at: new Date().toISOString()
   }, { onConflict: "player_id,season" });
