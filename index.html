@@ -32,7 +32,7 @@
       <section id="inicio" class="view active-view" aria-labelledby="hero-title">
         <div class="hero grid-lines">
           <div class="hero-copy">
-            <p class="eyebrow">10 anosde amizade, resenha e diversão</p>
+            <p class="eyebrow">10 anos de amizade, resenha e diversão</p>
             <h1 id="hero-title">Galera da  <br /> <em>pelada</em></h1>
             <p class="hero-text">veja todos os rankings da temporada 2026 artilheiro, garçom, craque, xerife e paredão </p>
             <div class="hero-actions">
@@ -119,10 +119,10 @@
             <form id="player-form" class="form-stack">
               <div class="photo-upload">
                 <div id="photo-preview" class="photo-preview">+</div>
-                <label class="upload-control">Escolher foto<input id="player-photo" type="file" accept="image/*" /></label>
+                <label class="upload-control" data-tooltip="Envie JPG, PNG ou WEBP de até 2,5 MB.">Escolher foto<input id="player-photo" type="file" accept="image/jpeg,image/png,image/webp" /></label>
               </div>
               <label>Nome <input id="player-name" required maxlength="42" placeholder="Ex.: Edilson" /></label>
-              <div class="form-row"><label>Numéro<input id="player-nickname" maxlength="20" placeholder="Ex.: 10" /></label><label>Posição<select id="player-position"><option>Atacante</option><option>Meia</option><option>Zagueiro</option><option>Goleiro</option><option>Versátil</option></select></label></div>
+              <div class="form-row"><label>Número da camisa<input id="player-shirt-number" required type="number" min="0" max="99" inputmode="numeric" placeholder="Ex.: 10" /></label><label>Posição<select id="player-position"><option>Atacante</option><option>Meia</option><option>Zagueiro</option><option>Goleiro</option><option>Versátil</option></select></label></div>
               <button class="button primary" type="submit">Salvar atleta <span>→</span></button>
             </form>
           </article>
@@ -139,8 +139,24 @@
               <button class="button primary" type="submit">Salvar rodada e atualizar ranking <span>→</span></button>
             </form>
           </article>
+
+          <article class="admin-card adjustment-card">
+            <div class="admin-card-heading"><span class="step">03</span><div><h2>Saldo histórico</h2><p>Informe o que já aconteceu em 2026 antes de usar o site nas rodadas de sábado.</p></div></div>
+            <form id="adjustment-form" class="form-stack">
+              <label>Atleta<select id="adjustment-player" required></select></label>
+              <div class="adjustment-fields">
+                <label>Gols<input id="adjustment-goals" type="number" min="0" value="0" inputmode="numeric" /></label>
+                <label>Assistências<input id="adjustment-assists" type="number" min="0" value="0" inputmode="numeric" /></label>
+                <label>Craque<input id="adjustment-craque" type="number" min="0" value="0" inputmode="numeric" /></label>
+                <label>Xerife<input id="adjustment-xerife" type="number" min="0" value="0" inputmode="numeric" /></label>
+                <label>Paredão<input id="adjustment-paredao" type="number" min="0" value="0" inputmode="numeric" /></label>
+              </div>
+              <p class="adjustment-note">Este saldo é somado automaticamente às rodadas salvas daqui para frente. Altere apenas se precisar corrigir os números anteriores.</p>
+              <button class="button primary" type="submit">Salvar saldo histórico <span>→</span></button>
+            </form>
+          </article>
         </div>
-        <article class="data-card roster-manager"><div><h2>Gerenciar atletas</h2><p>Exclua somente cadastros que não devem mais aparecer no elenco.</p></div><div id="admin-players-list" class="admin-players-list"></div></article>
+        <article class="data-card roster-manager"><div><h2>Gerenciar atletas</h2><p>Troque a foto quando quiser. Exclua somente cadastros que não devem mais aparecer no elenco.</p></div><div id="admin-players-list" class="admin-players-list"></div><input id="existing-player-photo" type="file" accept="image/jpeg,image/png,image/webp" hidden /></article>
       </section>
     </main>
 
