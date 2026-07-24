@@ -20,6 +20,38 @@
     <meta property="og:type" content="website" />
     <meta property="og:image" content="https://site-da-galera-da-pelada.vercel.app/assets/escudo-moderno-gpfc.png" />
     <meta property="og:site_name" content="G.P.F.C" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="G.P.F.C - Galera da Pelada" />
+    <meta name="twitter:description" content="Rankings, rodadas e resenha da Galera da Pelada." />
+    <meta name="twitter:image" content="https://site-da-galera-da-pelada.vercel.app/assets/escudo-moderno-gpfc.png" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SportsTeam",
+        "name": "G.P.F.C - Galera da Pelada",
+        "foundingDate": "2016",
+        "sport": "Futebol",
+        "url": "https://site-da-galera-da-pelada.vercel.app/",
+        "sameAs": ["https://www.instagram.com/galeradapelada2016/"],
+        "location": {
+          "@type": "Place",
+          "name": "CT Caxangá",
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "Rua Frei Rogério, 271",
+            "addressLocality": "Recife",
+            "addressRegion": "PE",
+            "addressCountry": "BR"
+          }
+        },
+        "areaServed": {
+          "@type": "City",
+          "name": "Camaragibe"
+        }
+      }
+    </script>
 
     <link rel="icon" type="image/png" href="assets/favicon-gpfc.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -28,6 +60,7 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#main-content">Pular para o conteúdo principal</a>
     <div class="ambient ambient-one"></div>
     <div class="ambient ambient-two"></div>
     <div class="site-watermark" aria-hidden="true"></div>
@@ -35,22 +68,22 @@
     <header class="topbar">
       <div class="brand-area">
         <a class="brand" href="https://www.instagram.com/galeradapelada2016/" target="_blank" rel="noopener noreferrer" aria-label="Abrir Instagram oficial do G.P.F.C">
-          <span class="brand-mark"><img src="assets/escudo-moderno-gpfc.png" alt="Escudo da Galera da Pelada" /></span>
+          <span class="brand-mark"><img src="assets/escudo-moderno-gpfc.png" alt="Escudo da Galera da Pelada - G.P.F.C" width="48" height="48" /></span>
           <span><strong>G.P.F.C</strong><small>DESDE 2016</small></span>
         </a>
-        <a class="official-instagram-link" href="https://www.instagram.com/galeradapelada2016/" target="_blank" rel="noopener noreferrer" aria-label="Abrir Instagram oficial da Galera da Pelada" title="Instagram oficial"><img src="assets/instagram-icon.avif" alt="" /></a>
+        <a class="official-instagram-link" href="https://www.instagram.com/galeradapelada2016/" target="_blank" rel="noopener noreferrer" aria-label="Abrir Instagram oficial da Galera da Pelada" title="Instagram oficial"><img src="assets/instagram-icon.avif" alt="Instagram" width="24" height="24" /></a>
       </div>
       <nav class="main-nav" aria-label="Navegação principal">
-        <button class="nav-link active" data-view-target="inicio">Início</button>
-        <button class="nav-link" data-view-target="rankings">Rankings</button>
-        <button class="nav-link" data-view-target="rodadas">Rodadas</button>
-        <button class="nav-link" data-view-target="atletas">Atletas</button>
+        <button class="nav-link active" data-view-target="inicio" type="button" aria-current="page">Início</button>
+        <button class="nav-link" data-view-target="rankings" type="button">Rankings</button>
+        <button class="nav-link" data-view-target="rodadas" type="button">Rodadas</button>
+        <button class="nav-link" data-view-target="atletas" type="button">Atletas</button>
         <button id="admin-access-button" class="nav-link" type="button"><span id="admin-nav-label">Entrar</span></button>
       </nav>
       <div class="season-chip"><span></span> Temporada 2026</div>
     </header>
 
-    <main>
+    <main id="main-content">
       <section id="inicio" class="view active-view" aria-labelledby="hero-title">
         <div class="hero grid-lines">
           <div class="hero-copy">
@@ -108,7 +141,7 @@
 
       <section id="rodadas" class="view section-wrap" aria-labelledby="rounds-title">
         <div class="page-heading">
-          <div><p class="eyebrow">SÁBADO É DIA DE JOGO</p><h1 id="rounds-title">Rodada da semana</h1><p>Acompanhe os confrontos, placares e escalações da Galera da Pelada.</p></div>
+          <div><p class="eyebrow">SÁBADO É DIA DE JOGO</p><h2 id="rounds-title">Rodada da semana</h2><p>Acompanhe os confrontos, placares e escalações da Galera da Pelada.</p></div>
           <span class="admin-badge">● TEMPORADA 2026</span>
         </div>
         <article id="public-round-week" class="round-public-panel"></article>
@@ -120,7 +153,7 @@
 
       <section id="rankings" class="view section-wrap" aria-labelledby="ranking-title">
         <div class="page-heading">
-          <div><p class="eyebrow">TEMPORADA 2026</p><h1 id="ranking-title">Rankings da galera</h1><p>Os números acumulados de todas as rodadas.</p></div>
+          <div><p class="eyebrow">TEMPORADA 2026</p><h2 id="ranking-title">Rankings da galera</h2><p>Os números acumulados de todas as rodadas.</p></div>
           <button class="button primary" data-admin-access type="button">Lançar rodada <span>+</span></button>
         </div>
         <div class="ranking-tabs" role="tablist" aria-label="Tipo de ranking">
@@ -149,7 +182,7 @@
 
       <section id="atletas" class="view section-wrap" aria-labelledby="athletes-title">
         <div class="page-heading athletes-heading">
-          <div><p class="eyebrow">O ELENCO</p><h1 id="athletes-title">Atletas do G.P.F.C</h1><p id="roster-summary">Carregando o elenco da temporada 2026.</p></div>
+          <div><p class="eyebrow">O ELENCO</p><h2 id="athletes-title">Atletas do G.P.F.C</h2><p id="roster-summary">Carregando o elenco da temporada 2026.</p></div>
           <button class="button primary" data-admin-access type="button">Cadastrar atleta <span>+</span></button>
         </div>
         <div class="filter-row"><label class="search-box"><span>⌕</span><input id="player-search" type="search" placeholder="Buscar por nome ou apelido" /></label><div id="position-filters" class="position-filters" aria-label="Filtrar atletas por posição"><button class="position-filter active" type="button" data-position-filter="all">Todos</button><button class="position-filter" type="button" data-position-filter="goalkeeper">Goleiros</button><button class="position-filter" type="button" data-position-filter="defender">Defensores</button><button class="position-filter" type="button" data-position-filter="midfielder">Meias</button><button class="position-filter" type="button" data-position-filter="forward">Atacantes</button></div><span id="roster-count" class="mini-label"></span></div>
@@ -158,7 +191,7 @@
 
       <section id="admin" class="view section-wrap" aria-labelledby="admin-title">
         <div class="page-heading">
-          <div><p class="eyebrow">ÁREA DO ORGANIZADOR</p><h1 id="admin-title">Central da rodada</h1><p>Cadastre atletas, fotos e estatísticas oficiais da temporada.</p></div>
+          <div><p class="eyebrow">ÁREA DO ORGANIZADOR</p><h2 id="admin-title">Central da rodada</h2><p>Cadastre atletas, fotos e estatísticas oficiais da temporada.</p></div>
           <div class="admin-session"><span class="admin-badge">● ADMINISTRADOR</span><button id="admin-logout" class="text-button" type="button">Sair</button></div>
         </div>
         <div class="admin-notice"><span>✦</span><p>Aqui somente o organizador lança os dados. Os rankings são recalculados automaticamente quando uma rodada é salva.</p></div>
@@ -321,7 +354,10 @@
         <div id="athlete-profile-content"></div>
       </section>
     </div>
-    <footer><span>GALERA DA PELADA</span> <i></i> DESDE 2016 <small>• Temporada 2026</small></footer>
+    <footer class="site-footer">
+      <p><span>G.P.F.C — GALERA DA PELADA</span> <i aria-hidden="true"></i> CAMARAGIBE — PE <small>• Desde 2016</small></p>
+      <a href="https://www.instagram.com/galeradapelada2016/" target="_blank" rel="noopener noreferrer">@galeradapelada2016</a>
+    </footer>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="app.js"></script>
