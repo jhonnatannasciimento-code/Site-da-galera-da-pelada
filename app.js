@@ -213,6 +213,28 @@ function cardStatsMarkup(item) {
   return `<div class="card-stats card-stats-${items.length}">${items.map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("")}</div>`;
 }
 
+function homeRoundCardMarkup() {
+  const draftRound = [...data.rounds].filter(round => round.status === "draft").sort((a, b) => b.number - a.number)[0];
+  const completedRound = [...data.rounds].filter(round => round.status === "completed").sort((a, b) => b.number - a.number)[0];
+  const round = draftRound || completedRound;
+  if (!round) {
+    return `<div class="home-round-card-top"><span class="home-round-kicker">PRÓXIMA PELADA</span><span class="home-round-pulse"></span></div><h2>Rodada ${getNextRoundNumber()}</h2><p class="home-round-date">Data a confirmar <span>· 17h às 19h</span></p><p class="home-round-place">CT Caxangá</p>${venueMapLink("Abrir CT Caxangá no GPS")}<button class="button secondary home-round-action" data-view-target="rodadas" type="button">Ver presença e confrontos <span>→</span></button>`;
+  }
+  const games = roundGames(round.id);
+  if (round.status === "completed") {
+    const totalGoals = games.reduce((sum, game) => sum + number(game.homeScore) + number(game.awayScore), 0);
+    const results = roundResults(round.id);
+    const highestWins = Math.max(0, ...results.map(item => item.wins));
+    const leaders = results.filter(item => item.wins === highestWins && highestWins > 0).map(item => item.team);
+    const summary = games.length ? `${games.length} ${games.length === 1 ? "confronto" : "confrontos"} · ${totalGoals} gols` : "Sem confrontos registrados";
+    return `<div class="home-round-card-top finished"><span class="home-round-kicker">RODADA FINALIZADA</span><span class="round-status completed">FINALIZADA</span></div><h2>${roundLabel(round)}</h2><p class="home-round-date">${formatDate(round.date)}</p><p class="home-round-summary">${summary}</p>${leaders.length ? `<p class="home-round-leader">Mais vitórias: <strong>${escapeHtml(leaders.join(" · "))}</strong></p>` : ""}<button class="button secondary home-round-action" data-view-target="rodadas" type="button">Ver resultados da rodada <span>→</span></button>`;
+  }
+  const attendance = data.attendance[round.id] || {};
+  const present = data.players.filter(player => attendance[player.id] === "present").length;
+  const unknown = data.players.filter(player => attendance[player.id] === "unknown").length;
+  return `<div class="home-round-card-top"><span class="home-round-kicker">PRÓXIMA PELADA</span><span class="home-round-pulse"></span></div><h2>${roundLabel(round)}</h2><p class="home-round-date">${formatDate(round.date)} <span>· 17h às 19h</span></p><p class="home-round-place">${escapeHtml(round.place || DEFAULT_VENUE_NAME)}</p><p class="home-round-attendance"><strong>${present}</strong> confirmados <i>·</i> <strong>${unknown}</strong> em dúvida</p>${venueMapLink("Abrir CT Caxangá no GPS")}<button class="button secondary home-round-action" data-view-target="rodadas" type="button">Ver presença e confrontos <span>→</span></button>`;
+}
+
 function renderHome() {
   const stats = getStats();
   const latest = getLatestGame();
@@ -224,6 +246,7 @@ function renderHome() {
   const assists = stats.reduce((sum, item) => sum + item.assists, 0);
   document.querySelector("#total-goals").textContent = goals;
   document.querySelector("#total-assists").textContent = assists;
+  document.querySelector("#home-round-card").innerHTML = homeRoundCardMarkup();
 
   const latestStats = latest?.stats || [];
   const awardPlayer = key => {
@@ -1192,6 +1215,11 @@ document.querySelector("#goal-events").addEventListener("change", event => {
   renderGoalEvents();
 });
 document.querySelectorAll("[data-view-target]").forEach(button => button.addEventListener("click", () => showView(button.dataset.viewTarget)));
+
+document.querySelector("#home-round-card").addEventListener("click", event => {
+  const button = event.target.closest("[data-view-target]");
+  if (button) showView(button.dataset.viewTarget);
+});
 document.querySelectorAll("[data-admin-access]").forEach(button => button.addEventListener("click", () => isAdmin ? showView("admin") : openLoginModal()));
 document.querySelector("#admin-access-button").addEventListener("click", () => isAdmin ? showView("admin") : openLoginModal());
 document.querySelectorAll("[data-close-login]").forEach(button => button.addEventListener("click", closeLoginModal));
