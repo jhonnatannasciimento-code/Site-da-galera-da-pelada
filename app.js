@@ -13,6 +13,7 @@ const ADJUSTMENT_FIELDS = ["games", ...STAT_FIELDS];
 const TEAM_LIMIT = 20;
 let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [] };
 let selectedRanking = "goals";
+let selectedPositionFilter = "all";
 let pendingPhotoFile = null;
 let pendingEditPhotoFile = null;
 let currentUser = null;
@@ -348,12 +349,63 @@ function renderCompleteRanking(stats) {
     `<tr><td class="complete-rank-position">${String(index + 1).padStart(2, "0")}</td><td><div class="complete-rank-player">${avatar(item.player)}<span><strong>${escapeHtml(displayName(item.player))}</strong><small>#${shirtNumber(item.player)} · ${escapeHtml(item.player.position)}</small></span></div></td><td>${item.games}</td><td>${attendanceByPlayer.get(item.player.id)?.present || 0}</td><td>${item.goals}</td><td>${item.assists}</td><td>${item.craque}</td><td>${item.xerife}</td><td>${item.paredao}</td></tr>`
   ).join("") : `<tr><td class="complete-ranking-empty" colspan="9">Ainda não existem atletas cadastrados.</td></tr>`;
 }
+function positionMatchesFilter(player, filter) {
+  if (filter === "all") return true;
+  const position = String(player?.position || "").toLocaleLowerCase("pt-BR");
+  return {
+    goalkeeper: position.includes("goleiro"),
+    defender: position.includes("zagueiro") || position.includes("defensor"),
+    midfielder: position.includes("meia"),
+    forward: position.includes("atacante")
+  }[filter] || false;
+}
+function seasonLeaderIds(stats, field, goalkeepersOnly = false) {
+  const eligible = stats.filter(item => !goalkeepersOnly || isGoalkeeper(item.player));
+  const highest = Math.max(0, ...eligible.map(item => number(item[field])));
+  return new Set(highest ? eligible.filter(item => number(item[field]) === highest).map(item => item.player.id) : []);
+}
+function leaderSets(stats = getStats()) {
+  return {
+    artilheiro: seasonLeaderIds(stats, "goals"),
+    garcom: seasonLeaderIds(stats, "assists"),
+    xerife: seasonLeaderIds(stats, "xerife"),
+    paredao: seasonLeaderIds(stats, "paredao", true)
+  };
+}
+function leaderBadgesMarkup(playerId, leaders) {
+  const badges = [
+    ["artilheiro", "&#9917; Artilheiro"],
+    ["garcom", "&#10148; Gar&ccedil;om"],
+    ["xerife", "&#9670; Xerife"],
+    ["paredao", "&#10032; Pared&atilde;o"]
+  ].filter(([key]) => leaders[key]?.has(playerId));
+  return badges.length ? `<div class="leader-badges">${badges.map(([key, label]) => `<span class="leader-badge ${key}">${label}</span>`).join("")}</div>` : "";
+}
+function closeAthleteProfileModal() {
+  document.querySelector("#athlete-profile-modal").hidden = true;
+}
+function openAthleteProfile(playerId) {
+  const stats = getStats().find(item => item.player.id === playerId);
+  if (!stats) return;
+  const player = stats.player;
+  const attendance = getAttendanceHistory(playerId);
+  const attendanceTotal = attendance.present + attendance.absent + attendance.unknown;
+  const specialty = isGoalkeeper(player)
+    ? [["PARED\u00c3O", stats.paredao], ["CRAQUE", stats.craque]]
+    : [["CRAQUE", stats.craque], ["XERIFE", stats.xerife]];
+  const mainStats = [["JOGOS", stats.games], ["GOLS", stats.goals], ["ASSIST.", stats.assists], ["PRESEN\u00c7AS", attendance.present]];
+  document.querySelector("#athlete-profile-content").innerHTML = `<div class="athlete-profile-hero"><div class="athlete-profile-avatar">${avatar(player)}</div><div><p class="eyebrow">ATLETA DO G.P.F.C</p><h2 id="athlete-profile-name">${escapeHtml(displayName(player))}</h2><p>#${shirtNumber(player)} \u00b7 ${escapeHtml(player.position)}</p>${leaderBadgesMarkup(player.id, leaderSets())}</div></div><section class="athlete-profile-stats">${mainStats.map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("")}</section><section class="athlete-profile-specialty">${specialty.map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join("")}</section><section class="athlete-profile-attendance"><div><span>HIST\u00d3RICO DE PRESEN\u00c7A</span><strong>${attendanceTotal ? `${attendance.present} foi` : "Ainda sem registros"}</strong></div><p>${attendanceTotal ? `${attendance.absent} faltas \u00b7 ${attendance.unknown} em d\u00favida \u00b7 ${attendanceTotal} listas salvas` : "A presen\u00e7a aparecer\u00e1 depois das pr\u00f3ximas rodadas."}</p></section>`;
+  document.querySelector("#athlete-profile-modal").hidden = false;
+  document.querySelector("#athlete-profile-modal .login-close").focus();
+}
 function renderPlayers(filter = "") {
   const text = filter.trim().toLocaleLowerCase("pt-BR");
   const allPlayers = getStats();
   const goalkeepers = allPlayers.filter(item => isGoalkeeper(item.player)).length;
   document.querySelector("#roster-summary").textContent = `${allPlayers.length} ${allPlayers.length === 1 ? "atleta" : "atletas"} no elenco, incluindo ${goalkeepers} ${goalkeepers === 1 ? "goleiro" : "goleiros"} na temporada 2026.`;
-  const players = allPlayers.filter(item => !text || `${item.player.name} ${item.player.shirtNumber}`.toLocaleLowerCase("pt-BR").includes(text)).sort((a, b) => displayName(a.player).localeCompare(displayName(b.player)));
+  document.querySelectorAll("[data-position-filter]").forEach(button => button.classList.toggle("active", button.dataset.positionFilter === selectedPositionFilter));
+  const players = allPlayers.filter(item => positionMatchesFilter(item.player, selectedPositionFilter) && (!text || `${item.player.name} ${item.player.shirtNumber}`.toLocaleLowerCase("pt-BR").includes(text))).sort((a, b) => displayName(a.player).localeCompare(displayName(b.player)));
+  const leaders = leaderSets(allPlayers);
   document.querySelector("#roster-count").textContent = `${players.length} ${players.length === 1 ? "ATLETA" : "ATLETAS"}`;
   document.querySelector("#athletes-grid").innerHTML = players.map(item => {
     const history = getAttendanceHistory(item.player.id);
@@ -361,7 +413,7 @@ function renderPlayers(filter = "") {
     const attendanceSummary = historyTotal
       ? `Presença: ${history.present} foi · ${history.absent} faltas · ${history.unknown} dúvidas`
       : "Histórico de presença será exibido nas próximas rodadas.";
-    return `<article class="athlete-card"><div class="card-image">${avatar(item.player)}</div><div class="card-top"><span>GP • 2026</span><span class="athlete-number">#${shirtNumber(item.player)}</span></div><div class="card-bottom"><h2>${escapeHtml(displayName(item.player))}</h2><p>${escapeHtml(item.player.position)}</p><div class="card-games"><strong>${item.games} ${item.games === 1 ? "jogo disputado" : "jogos disputados"}</strong><small>${attendanceSummary}</small></div>${cardStatsMarkup(item)}</div></article>`;
+    return `<button class="athlete-card athlete-card-button" data-open-athlete="${item.player.id}" type="button" aria-label="Abrir perfil de ${escapeHtml(displayName(item.player))}"><div class="card-image">${avatar(item.player)}</div><div class="card-top"><span>GP • 2026</span><span class="athlete-number">#${shirtNumber(item.player)}</span></div>${leaderBadgesMarkup(item.player.id, leaders)}<div class="card-bottom"><h2>${escapeHtml(displayName(item.player))}</h2><p>${escapeHtml(item.player.position)}</p><div class="card-games"><strong>${item.games} ${item.games === 1 ? "jogo disputado" : "jogos disputados"}</strong><small>${attendanceSummary}</small></div>${cardStatsMarkup(item)}</div></button>`;
   }).join("") || `<div class="empty-state">Nenhum atleta cadastrado ainda.</div>`;
 }
 function teamOptions(selected = "") {
@@ -1274,9 +1326,20 @@ document.querySelectorAll("[data-admin-access]").forEach(button => button.addEve
 document.querySelector("#admin-access-button").addEventListener("click", () => isAdmin ? showView("admin") : openLoginModal());
 document.querySelectorAll("[data-close-login]").forEach(button => button.addEventListener("click", closeLoginModal));
 document.querySelectorAll("[data-close-player-edit]").forEach(button => button.addEventListener("click", closePlayerEditModal));
+document.querySelectorAll("[data-close-athlete-profile]").forEach(button => button.addEventListener("click", closeAthleteProfileModal));
 document.querySelector("#admin-logout").addEventListener("click", async () => { await supabaseClient.auth.signOut(); await refreshAuthState(); showView("inicio"); toast("Sessão encerrada."); });
 document.querySelectorAll(".ranking-tab").forEach(button => button.addEventListener("click", () => { selectedRanking = button.dataset.ranking; renderRanking(); }));
 document.querySelector("#player-search").addEventListener("input", event => renderPlayers(event.target.value));
+document.querySelector("#position-filters").addEventListener("click", event => {
+  const button = event.target.closest("[data-position-filter]");
+  if (!button) return;
+  selectedPositionFilter = button.dataset.positionFilter;
+  renderPlayers(document.querySelector("#player-search").value);
+});
+document.querySelector("#athletes-grid").addEventListener("click", event => {
+  const card = event.target.closest("[data-open-athlete]");
+  if (card) openAthleteProfile(card.dataset.openAthlete);
+});
 document.querySelector("#player-photo").addEventListener("change", event => {
   const file = event.target.files[0];
   if (!file || !validatePlayerPhoto(file, event.target)) return;

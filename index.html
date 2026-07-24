@@ -119,7 +119,7 @@
           <div><p class="eyebrow">O ELENCO</p><h1 id="athletes-title">Atletas do G.P.F.C</h1><p id="roster-summary">Carregando o elenco da temporada 2026.</p></div>
           <button class="button primary" data-admin-access type="button">Cadastrar atleta <span>+</span></button>
         </div>
-        <div class="filter-row"><label class="search-box"><span>⌕</span><input id="player-search" type="search" placeholder="Buscar por nome ou apelido" /></label><span id="roster-count" class="mini-label"></span></div>
+        <div class="filter-row"><label class="search-box"><span>⌕</span><input id="player-search" type="search" placeholder="Buscar por nome ou apelido" /></label><div id="position-filters" class="position-filters" aria-label="Filtrar atletas por posição"><button class="position-filter active" type="button" data-position-filter="all">Todos</button><button class="position-filter" type="button" data-position-filter="goalkeeper">Goleiros</button><button class="position-filter" type="button" data-position-filter="defender">Defensores</button><button class="position-filter" type="button" data-position-filter="midfielder">Meias</button><button class="position-filter" type="button" data-position-filter="forward">Atacantes</button></div><span id="roster-count" class="mini-label"></span></div>
         <div id="athletes-grid" class="athletes-grid"></div>
       </section>
 
@@ -239,6 +239,13 @@
           <div class="adjustment-fields edit-stats-fields"><label>Jogos<input id="edit-player-games" type="number" min="0" value="0" inputmode="numeric" /></label><label>Gols<input id="edit-player-goals" type="number" min="0" value="0" inputmode="numeric" /></label><label>Assistências<input id="edit-player-assists" type="number" min="0" value="0" inputmode="numeric" /></label><label>Craque<input id="edit-player-craque" type="number" min="0" value="0" inputmode="numeric" /></label><label>Xerife<input id="edit-player-xerife" type="number" min="0" value="0" inputmode="numeric" /></label><label>Paredão<input id="edit-player-paredao" type="number" min="0" value="0" inputmode="numeric" /></label></div>
           <button class="button primary" type="submit">Salvar alterações <span>→</span></button>
         </form>
+      </section>
+    </div>
+    <div id="athlete-profile-modal" class="login-modal athlete-profile-modal" hidden>
+      <div class="login-backdrop" data-close-athlete-profile></div>
+      <section class="login-card athlete-profile-card" role="dialog" aria-modal="true" aria-labelledby="athlete-profile-name">
+        <button class="login-close" type="button" data-close-athlete-profile aria-label="Fechar">×</button>
+        <div id="athlete-profile-content"></div>
       </section>
     </div>
     <footer><span>GALERA DA PELADA</span> <i></i> DESDE 2016 <small>• Temporada 2026</small></footer>
