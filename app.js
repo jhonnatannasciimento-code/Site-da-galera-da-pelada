@@ -161,7 +161,7 @@ function getGameTotals(playerId) {
 function getRecordedGameCount(playerId) {
   return data.games.reduce((total, game) => total + (game.stats.some(entry => entry.playerId === playerId) ? 1 : 0), 0);
 }
-function getStats() {
+function getStats(excludeRoundId = null) {
   const totals = Object.fromEntries(data.players.map(player => [player.id, {
     player,
     games: number(data.adjustments[player.id]?.games),
@@ -173,7 +173,9 @@ function getStats() {
     xerife: number(data.adjustments[player.id]?.xerife),
     paredao: number(data.adjustments[player.id]?.paredao)
   }]));
-  data.games.forEach(game => game.stats.forEach(entry => {
+  data.games.forEach(game => {
+    if (excludeRoundId && String(game.roundId) === String(excludeRoundId)) return;
+    game.stats.forEach(entry => {
     const total = totals[entry.playerId];
     if (!total) return;
     total.games += 1;
@@ -184,12 +186,25 @@ function getStats() {
     total.craque += number(entry.craque);
     total.xerife += number(entry.xerife);
     total.paredao += number(entry.paredao);
-  }));
+    });
+  });
   data.roundAwards.forEach(award => {
+    if (excludeRoundId && String(award.roundId) === String(excludeRoundId)) return;
     const total = totals[award.playerId];
     if (total) total[award.category] += 1;
   });
   return Object.values(totals);
+}
+function getAttendanceStats(excludeRoundId = null) {
+  return data.players.map(player => {
+    const totals = { player, present: 0, absent: 0, unknown: 0 };
+    Object.entries(data.attendance).forEach(([roundId, statuses]) => {
+      if (excludeRoundId && String(roundId) === String(excludeRoundId)) return;
+      const status = statuses?.[player.id];
+      if (["present", "absent", "unknown"].includes(status)) totals[status] += 1;
+    });
+    return totals;
+  });
 }
 function bestStat(metric) {
   const items = metric === "paredao" ? getStats().filter(item => isGoalkeeper(item.player)) : getStats();
@@ -283,16 +298,44 @@ const rankingDetails = {
   assists: { title: "Assistências", kicker: "PASSES PARA GOL", singular: "ASSIST.", plural: "ASSIST." },
   craque: { title: "Craque", kicker: "VEZES CRAQUE DA RODADA", singular: "VEZ", plural: "VEZES" },
   xerife: { title: "Xerife", kicker: "DESTAQUES DEFENSIVOS", singular: "VEZ", plural: "VEZES" },
-  paredao: { title: "Paredão", kicker: "GOLEIROS DA RODADA", singular: "VEZ", plural: "VEZES" }
+  paredao: { title: "Paredão", kicker: "GOLEIROS DA RODADA", singular: "VEZ", plural: "VEZES" },
+  presence: { title: "Presenças", kicker: "QUEM MAIS COMPARECEU", singular: "PRESENÇA", plural: "PRESENÇAS" }
 };
+function getLatestCompletedRound() {
+  return [...data.rounds].filter(round => round.status === "completed").sort((a, b) => b.number - a.number)[0];
+}
+function getRankingItems(metric, stats = getStats(), excludeRoundId = null) {
+  const items = metric === "presence" ? getAttendanceStats(excludeRoundId) : stats;
+  return items
+    .filter(item => metric === "presence" ? item.present > 0 : item[metric] > 0)
+    .filter(item => metric !== "paredao" || isGoalkeeper(item.player))
+    .sort((a, b) => metric === "presence"
+      ? b.present - a.present || a.absent - b.absent || displayName(a.player).localeCompare(displayName(b.player))
+      : b[metric] - a[metric] || b.goals - a.goals || b.assists - a.assists || displayName(a.player).localeCompare(displayName(b.player))
+    );
+}
+function rankingMovementMarkup(playerId, currentPosition, previousPositions, referenceRound) {
+  if (!referenceRound) return `<span class="ranking-movement neutral" title="A evolução aparecerá após a primeira rodada finalizada.">—</span>`;
+  const previousPosition = previousPositions.get(playerId);
+  if (!previousPosition) return `<span class="ranking-movement new" title="Entrou no ranking nesta rodada.">NOVO</span>`;
+  const change = previousPosition - currentPosition;
+  if (change > 0) return `<span class="ranking-movement up" title="Subiu ${change} ${change === 1 ? "posição" : "posições"}.">&uarr; ${change}</span>`;
+  if (change < 0) return `<span class="ranking-movement down" title="Desceu ${Math.abs(change)} ${Math.abs(change) === 1 ? "posição" : "posições"}.">&darr; ${Math.abs(change)}</span>`;
+  return `<span class="ranking-movement stable" title="Manteve a posição.">—</span>`;
+}
 function renderRanking() {
   const details = rankingDetails[selectedRanking];
   document.querySelector("#ranking-kicker").textContent = details.kicker;
   document.querySelector("#ranking-name").textContent = details.title;
   document.querySelectorAll(".ranking-tab").forEach(tab => tab.classList.toggle("active", tab.dataset.ranking === selectedRanking));
-  const items = getStats().filter(item => item[selectedRanking] > 0).sort((a, b) => b[selectedRanking] - a[selectedRanking] || b.goals - a.goals || displayName(a.player).localeCompare(displayName(b.player)));
+  const referenceRound = getLatestCompletedRound();
+  const previousItems = referenceRound ? getRankingItems(selectedRanking, getStats(referenceRound.id), referenceRound.id) : [];
+  const previousPositions = new Map(previousItems.map((item, index) => [item.player.id, index + 1]));
+  const updateLabel = document.querySelector("#ranking-update-label");
+  if (updateLabel) updateLabel.textContent = referenceRound ? `MOVIMENTAÇÃO NA ${roundLabel(referenceRound).toUpperCase()}` : "AGUARDANDO RODADA FINALIZADA";
+  const items = getRankingItems(selectedRanking);
   document.querySelector("#ranking-list").innerHTML = items.length ? items.map((item, index) =>
-    `<article class="rank-row"><span class="rank-position">${String(index + 1).padStart(2, "0")}</span>${avatar(item.player)}<div class="rank-player"><strong>${escapeHtml(displayName(item.player))}</strong><small>#${shirtNumber(item.player)} · ${escapeHtml(item.player.position)} · ${item.games} ${item.games === 1 ? "jogo" : "jogos"}</small></div><span class="rank-meta">${item.goals} gols · ${item.assists} assist.</span><span class="rank-value">${item[selectedRanking]}<small>${item[selectedRanking] === 1 ? details.singular : details.plural}</small></span></article>`
+    `<article class="rank-row"><span class="rank-position">${String(index + 1).padStart(2, "0")}</span>${avatar(item.player)}<div class="rank-player"><strong>${escapeHtml(displayName(item.player))}</strong><small>#${shirtNumber(item.player)} · ${escapeHtml(item.player.position)} · ${selectedRanking === "presence" ? `${item.absent} faltas` : `${item.games} ${item.games === 1 ? "jogo" : "jogos"}`}</small></div><span class="rank-meta">${selectedRanking === "presence" ? `${item.present} confirmadas · ${item.unknown} dúvidas` : `${item.goals} gols · ${item.assists} assist.`}</span>${rankingMovementMarkup(item.player.id, index + 1, previousPositions, referenceRound)}<span class="rank-value">${selectedRanking === "presence" ? item.present : item[selectedRanking]}<small>${(selectedRanking === "presence" ? item.present : item[selectedRanking]) === 1 ? details.singular : details.plural}</small></span></article>`
   ).join("") : `<div class="empty-state">Ainda não existem dados nesta categoria.</div>`;
   renderCompleteRanking(getStats());
 }
@@ -300,9 +343,10 @@ function renderCompleteRanking(stats) {
   const items = [...stats].sort((a, b) =>
     b.goals - a.goals || b.assists - a.assists || b.craque - a.craque || b.xerife - a.xerife || b.paredao - a.paredao || b.games - a.games || displayName(a.player).localeCompare(displayName(b.player))
   );
+  const attendanceByPlayer = new Map(getAttendanceStats().map(item => [item.player.id, item]));
   document.querySelector("#complete-ranking-list").innerHTML = items.length ? items.map((item, index) =>
-    `<tr><td class="complete-rank-position">${String(index + 1).padStart(2, "0")}</td><td><div class="complete-rank-player">${avatar(item.player)}<span><strong>${escapeHtml(displayName(item.player))}</strong><small>#${shirtNumber(item.player)} · ${escapeHtml(item.player.position)}</small></span></div></td><td>${item.games}</td><td>${item.goals}</td><td>${item.assists}</td><td>${item.craque}</td><td>${item.xerife}</td><td>${item.paredao}</td></tr>`
-  ).join("") : `<tr><td class="complete-ranking-empty" colspan="8">Ainda não existem atletas cadastrados.</td></tr>`;
+    `<tr><td class="complete-rank-position">${String(index + 1).padStart(2, "0")}</td><td><div class="complete-rank-player">${avatar(item.player)}<span><strong>${escapeHtml(displayName(item.player))}</strong><small>#${shirtNumber(item.player)} · ${escapeHtml(item.player.position)}</small></span></div></td><td>${item.games}</td><td>${attendanceByPlayer.get(item.player.id)?.present || 0}</td><td>${item.goals}</td><td>${item.assists}</td><td>${item.craque}</td><td>${item.xerife}</td><td>${item.paredao}</td></tr>`
+  ).join("") : `<tr><td class="complete-ranking-empty" colspan="9">Ainda não existem atletas cadastrados.</td></tr>`;
 }
 function renderPlayers(filter = "") {
   const text = filter.trim().toLocaleLowerCase("pt-BR");
