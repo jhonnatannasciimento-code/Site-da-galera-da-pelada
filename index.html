@@ -16,10 +16,13 @@
     <div class="site-watermark" aria-hidden="true"></div>
 
     <header class="topbar">
-      <a class="brand" href="#inicio" aria-label="Ir para o início">
-        <span class="brand-mark"><img src="assets/escudo-moderno-gpfc.png" alt="Escudo da Galera da Pelada" /></span>
-        <span><strong>G.P.F.C</strong><small>DESDE 2016</small></span>
-      </a>
+      <div class="brand-area">
+        <a class="brand" href="https://www.instagram.com/galeradapelada2016/" target="_blank" rel="noopener noreferrer" aria-label="Abrir Instagram oficial do G.P.F.C">
+          <span class="brand-mark"><img src="assets/escudo-moderno-gpfc.png" alt="Escudo da Galera da Pelada" /></span>
+          <span><strong>G.P.F.C</strong><small>DESDE 2016</small></span>
+        </a>
+        <a class="official-instagram-link" href="https://www.instagram.com/galeradapelada2016/" target="_blank" rel="noopener noreferrer" aria-label="Abrir Instagram oficial da Galera da Pelada" title="Instagram oficial"><img src="assets/instagram-icon.avif" alt="" /></a>
+      </div>
       <nav class="main-nav" aria-label="Navegação principal">
         <button class="nav-link active" data-view-target="inicio">Início</button>
         <button class="nav-link" data-view-target="rankings">Rankings</button>
@@ -34,6 +37,10 @@
       <section id="inicio" class="view active-view" aria-labelledby="hero-title">
         <div class="hero grid-lines">
           <div class="hero-copy">
+            <div class="hero-directors" aria-label="Diretoria G.P.F.C">
+              <span>Diretoria G.P.F.C <img class="section-instagram-icon" src="assets/instagram-icon.avif" alt="Instagram" /></span>
+              <div id="directors-grid" class="directors-grid" aria-live="polite"></div>
+            </div>
             <p class="eyebrow">10 anos de amizade, resenha e diversão</p>
             <h1 id="hero-title">Galera da  <br /> <em>pelada</em></h1>
             <p class="hero-text">veja todos os rankings da temporada 2026 artilheiro, garçom, craque, xerife e paredão </p>
@@ -226,6 +233,7 @@
           </article>
         </div>
         <article class="data-card roster-manager"><div><h2>Gerenciar atletas</h2><p>Use Editar para alterar nome, camisa, posição, foto e estatísticas da temporada.</p></div><div id="admin-players-list" class="admin-players-list"></div></article>
+        <article class="data-card directors-manager"><div><p class="eyebrow">PÁGINA INICIAL</p><h2>Gerenciar diretoria</h2><p>Edite nome, função, Instagram e foto dos três diretores exibidos publicamente.</p></div><div id="admin-directors-list" class="admin-directors-list"></div></article>
       </section>
     </main>
 
@@ -261,6 +269,31 @@
           <div><strong class="form-subtitle">Estatísticas da temporada</strong><p class="form-help">As rodadas já registradas continuam preservadas.</p></div>
           <div class="adjustment-fields edit-stats-fields"><label>Jogos<input id="edit-player-games" type="number" min="0" value="0" inputmode="numeric" /></label><label>Gols<input id="edit-player-goals" type="number" min="0" value="0" inputmode="numeric" /></label><label>Assistências<input id="edit-player-assists" type="number" min="0" value="0" inputmode="numeric" /></label><label>Craque<input id="edit-player-craque" type="number" min="0" value="0" inputmode="numeric" /></label><label>Xerife<input id="edit-player-xerife" type="number" min="0" value="0" inputmode="numeric" /></label><label>Paredão<input id="edit-player-paredao" type="number" min="0" value="0" inputmode="numeric" /></label></div>
           <button class="button primary" type="submit">Salvar alterações <span>→</span></button>
+        </form>
+      </section>
+    </div>
+    <div id="director-edit-modal" class="login-modal player-edit-modal" hidden>
+      <div class="login-backdrop" data-close-director-edit></div>
+      <section class="login-card director-edit-card" role="dialog" aria-modal="true" aria-labelledby="director-edit-title">
+        <button class="login-close" type="button" data-close-director-edit aria-label="Fechar">×</button>
+        <p class="eyebrow">DIRETORIA G.P.F.C</p>
+        <h2 id="director-edit-title">Editar diretor</h2>
+        <p>Os dados aparecerão na página inicial e o link abrirá o Instagram informado.</p>
+        <form id="director-edit-form" class="form-stack">
+          <input id="edit-director-id" type="hidden" />
+          <div class="photo-upload"><div id="edit-director-photo-preview" class="photo-preview director-photo-preview">+</div><label class="upload-control" data-tooltip="Envie JPG, PNG ou WEBP de até 2,5 MB.">Trocar foto<input id="edit-director-photo" type="file" accept="image/jpeg,image/png,image/webp" /></label></div>
+          <div id="director-cropper" class="director-cropper" hidden>
+            <div id="director-crop-area" class="director-crop-area" aria-label="Arraste a foto para ajustar o enquadramento">
+              <img id="director-crop-image" alt="Ajuste da foto do diretor" draggable="false" />
+              <span class="director-crop-ring" aria-hidden="true"></span>
+            </div>
+            <label class="director-zoom-label">Aproximar ou afastar a foto<input id="director-crop-zoom" type="range" min="1" max="3" value="1" step="0.01" /></label>
+            <p>Arraste a foto dentro do círculo para centralizar o rosto. O recorte será salvo assim.</p>
+          </div>
+          <label>Nome<input id="edit-director-name" required maxlength="80" /></label>
+          <label>Função na pelada<input id="edit-director-role" required maxlength="100" placeholder="Ex.: Diretor Geral" /></label>
+          <label>Link do Instagram<input id="edit-director-instagram" required type="url" inputmode="url" placeholder="https://www.instagram.com/seu_perfil/" /></label>
+          <button class="button primary" type="submit">Salvar diretor <span>→</span></button>
         </form>
       </section>
     </div>

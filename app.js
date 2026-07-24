@@ -11,12 +11,21 @@ const STAT_FIELDS = ["goals", "assists", "craque", "xerife", "paredao"];
 const MATCH_STAT_FIELDS = ["goals", "assists"];
 const ADJUSTMENT_FIELDS = ["games", ...STAT_FIELDS];
 const TEAM_LIMIT = 20;
-let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [], highlightClips: [] };
+const DIRECTOR_PHOTO_BUCKET = "director-photos";
+const DIRECTOR_CROP_SIZE = 220;
+const DEFAULT_DIRECTORS = [
+  { id: "anderson", slot: 1, name: "Anderson", role: "Diretor Geral", instagramUrl: "https://www.instagram.com/anderson_r_andrade/", photo: null },
+  { id: "almir", slot: 2, name: "Almir", role: "Diretor Auxiliar", instagramUrl: "https://www.instagram.com/almir.claudino/", photo: null },
+  { id: "jhonnatan", slot: 3, name: "Jhonnatan", role: "Diretor de Marketing", instagramUrl: "https://www.instagram.com/jhonnatan_nascimento/", photo: null }
+];
+let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [], highlightClips: [], directors: [] };
 let selectedRanking = "goals";
 let selectedPositionFilter = "all";
 let expandedPublicRoundIds = new Set();
 let pendingPhotoFile = null;
 let pendingEditPhotoFile = null;
+let pendingDirectorPhotoFile = null;
+let directorCropState = null;
 let currentUser = null;
 let isAdmin = false;
 let editingGameId = null;
@@ -26,6 +35,7 @@ let attendanceAvailable = true;
 let rodizioAvailable = true;
 let goalEventsAvailable = true;
 let highlightClipsAvailable = true;
+let directorsAvailable = true;
 let gameDraftEntries = null;
 let gameGoalEvents = [];
 let lineupSearchText = "";
@@ -55,6 +65,16 @@ function avatar(player, extraClass = "") {
     ? `<img src="${player.photo}" alt="Foto de ${escapeHtml(name)}" />`
     : initials(player)}</div>`;
 }
+function directorPhotoMarkup(director, extraClass = "") {
+  const name = director?.name || "Diretor";
+  return `<div class="director-avatar ${extraClass}">${director?.photo
+    ? `<img src="${escapeHtml(director.photo)}" alt="Foto de ${escapeHtml(name)}" />`
+    : `<img src="assets/escudo-moderno-gpfc.png" alt="Escudo do G.P.F.C" />`}</div>`;
+}
+function directorList() {
+  return (data.directors.length ? data.directors : DEFAULT_DIRECTORS).slice().sort((a, b) => a.slot - b.slot);
+}
+function clamp(value, minimum, maximum) { return Math.min(Math.max(value, minimum), maximum); }
 function formatDate(date) {
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" })
     .format(new Date(`${date}T12:00:00`)).replaceAll(" de ", " ");
@@ -281,6 +301,11 @@ function homeRoundCardMarkup() {
   return `<div class="home-round-card-top"><span class="home-round-kicker">PRÓXIMA PELADA</span><span class="home-round-pulse"></span></div><h2>${roundLabel(round)}</h2><p class="home-round-date">${formatDate(round.date)} <span>· 17h às 19h</span></p><p class="home-round-place">${escapeHtml(round.place || DEFAULT_VENUE_NAME)}</p><p class="home-round-attendance"><strong>${present}</strong> confirmados <i>·</i> <strong>${unknown}</strong> em dúvida</p>${venueMapLink("Abrir CT Caxangá no GPS")}<button class="button secondary home-round-action" data-view-target="rodadas" type="button">Ver presença e confrontos <span>→</span></button>`;
 }
 
+function renderDirectors() {
+  const container = document.querySelector("#directors-grid");
+  if (!container) return;
+  container.innerHTML = directorList().map(director => `<a class="director-card" href="${escapeHtml(director.instagramUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Abrir Instagram de ${escapeHtml(director.name)}"><div class="director-card-photo">${directorPhotoMarkup(director)}</div><div><span class="director-card-kicker">DIRETORIA G.P.F.C</span><h3>${escapeHtml(director.name)}</h3><p>${escapeHtml(director.role)}</p><small>Instagram <b>→</b></small></div></a>`).join("");
+}
 function renderHome() {
   const stats = getStats();
   const latest = getLatestGame();
@@ -1006,6 +1031,15 @@ function renderAdminPlayers() {
     `<article class="admin-player-item"><div>${avatar(player)}<span><strong>${escapeHtml(displayName(player))}</strong><small>#${shirtNumber(player)} · ${escapeHtml(player.position)}</small></span></div><span class="admin-player-actions"><button class="edit-player" data-edit-player="${player.id}" type="button">Editar</button><button class="delete-player" data-delete-player="${player.id}" type="button">Excluir</button></span></article>`
   ).join("") : `<div class="empty-state">Nenhum atleta para gerenciar.</div>`;
 }
+function renderAdminDirectors() {
+  const container = document.querySelector("#admin-directors-list");
+  if (!container) return;
+  if (!directorsAvailable) {
+    container.innerHTML = `<p class="adjustment-note">Execute a migração 013 no Supabase para ativar a edição da diretoria.</p>`;
+    return;
+  }
+  container.innerHTML = directorList().map(director => `<article class="admin-director-item"><div>${directorPhotoMarkup(director)}<span><strong>${escapeHtml(director.name)}</strong><small>${escapeHtml(director.role)}</small></span></div><button class="edit-director" data-edit-director="${director.id}" type="button">Editar</button></article>`).join("");
+}
 function renderAdjustmentForm() {
   const select = document.querySelector("#adjustment-player");
   const selectedId = select.value;
@@ -1097,6 +1131,7 @@ function updateGameFormState() {
   syncGameFormWithRound();
 }
 function renderAll() {
+  renderDirectors();
   renderHome();
   renderHomeHighlights();
   renderHomeClips();
@@ -1107,6 +1142,7 @@ function renderAll() {
   renderGameFields();
   renderSavedGames();
   renderAdminPlayers();
+  renderAdminDirectors();
   renderAdjustmentForm();
   renderRoundWeek();
   renderRoundAwards();
@@ -1128,7 +1164,7 @@ function toast(message) {
 }
 
 async function loadRemoteData(showMessage = false) {
-  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult] = await Promise.all([
+  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult, directorsResult] = await Promise.all([
     supabaseClient.from("players").select("*").order("full_name"),
     supabaseClient.from("games").select("*").order("played_on", { ascending: false }),
     supabaseClient.from("player_game_stats").select("*"),
@@ -1137,7 +1173,8 @@ async function loadRemoteData(showMessage = false) {
     supabaseClient.from("round_attendance").select("*"),
     supabaseClient.from("round_awards").select("*"),
     supabaseClient.from("game_goal_events").select("*").order("event_number"),
-    supabaseClient.from("round_highlight_clips").select("*").order("created_at", { ascending: false })
+    supabaseClient.from("round_highlight_clips").select("*").order("created_at", { ascending: false }),
+    supabaseClient.from("director_profiles").select("*").order("slot")
   ]);
   const error = playersResult.error || gamesResult.error || statsResult.error || adjustmentsResult.error;
   if (error) { toast(`Não foi possível carregar os dados: ${error.message}`); return; }
@@ -1146,6 +1183,7 @@ async function loadRemoteData(showMessage = false) {
   rodizioAvailable = !awardsResult.error;
   goalEventsAvailable = !goalEventsResult.error;
   highlightClipsAvailable = !highlightClipsResult.error;
+  directorsAvailable = !directorsResult.error;
   const gamesById = new Map((gamesResult.data || []).map(game => [game.id, game]));
   const gameStats = new Map((gamesResult.data || []).map(game => [game.id, []]));
   (statsResult.data || []).forEach(stat => gameStats.get(stat.game_id)?.push({
@@ -1171,7 +1209,8 @@ async function loadRemoteData(showMessage = false) {
     }, {}),
     roundAwards: (awardsResult.data || []).map(award => ({ roundId: award.round_id, playerId: award.player_id, category: award.category })),
     goalEvents: (goalEventsResult.data || []).map(event => ({ id: event.id, gameId: event.game_id, team: String(event.team_number), scorerId: event.scorer_id, assisterId: event.assister_id, number: event.event_number })),
-    highlightClips: (highlightClipsResult.data || []).map(clip => ({ id: clip.id, roundId: clip.round_id, playerId: clip.player_id, type: clip.clip_type, instagramUrl: clip.instagram_url, caption: clip.caption, createdAt: clip.created_at }))
+    highlightClips: (highlightClipsResult.data || []).map(clip => ({ id: clip.id, roundId: clip.round_id, playerId: clip.player_id, type: clip.clip_type, instagramUrl: clip.instagram_url, caption: clip.caption, createdAt: clip.created_at })),
+    directors: (directorsResult.data || []).map(director => ({ id: director.id, slot: director.slot, name: director.full_name, role: director.role, instagramUrl: director.instagram_url, photo: director.photo_url }))
   };
   if (activeRoundId && !getRoundById(activeRoundId)) activeRoundId = null;
   if (!activeRoundId) {
@@ -1226,6 +1265,68 @@ async function uploadPlayerPhoto(playerId, file) {
   const { error } = await supabaseClient.storage.from("player-photos").upload(path, file, { cacheControl: "3600", upsert: false });
   if (error) throw error;
   return supabaseClient.storage.from("player-photos").getPublicUrl(path).data.publicUrl;
+}
+async function uploadDirectorPhoto(directorId, file) {
+  if (!file) return null;
+  const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const path = `${directorId}/${Date.now()}.${extension}`;
+  const { error } = await supabaseClient.storage.from(DIRECTOR_PHOTO_BUCKET).upload(path, file, { cacheControl: "3600", upsert: false });
+  if (error) throw error;
+  return supabaseClient.storage.from(DIRECTOR_PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+function resetDirectorCropper() {
+  if (directorCropState?.objectUrl) URL.revokeObjectURL(directorCropState.objectUrl);
+  directorCropState = null;
+  const cropper = document.querySelector("#director-cropper");
+  const image = document.querySelector("#director-crop-image");
+  const zoom = document.querySelector("#director-crop-zoom");
+  if (cropper) cropper.hidden = true;
+  if (image) image.removeAttribute("src");
+  if (zoom) zoom.value = "1";
+}
+function updateDirectorCropper() {
+  if (!directorCropState) return;
+  const state = directorCropState;
+  const scale = state.baseScale * state.zoom;
+  const width = state.image.naturalWidth * scale;
+  const height = state.image.naturalHeight * scale;
+  state.x = clamp(state.x, DIRECTOR_CROP_SIZE - width, 0);
+  state.y = clamp(state.y, DIRECTOR_CROP_SIZE - height, 0);
+  const preview = document.querySelector("#director-crop-image");
+  preview.style.width = `${width}px`;
+  preview.style.height = `${height}px`;
+  preview.style.left = `${state.x}px`;
+  preview.style.top = `${state.y}px`;
+  document.querySelector("#director-crop-zoom").value = String(state.zoom);
+}
+function startDirectorCropper(file) {
+  resetDirectorCropper();
+  const objectUrl = URL.createObjectURL(file);
+  const image = new Image();
+  image.onload = () => {
+    const baseScale = Math.max(DIRECTOR_CROP_SIZE / image.naturalWidth, DIRECTOR_CROP_SIZE / image.naturalHeight);
+    const width = image.naturalWidth * baseScale;
+    const height = image.naturalHeight * baseScale;
+    directorCropState = { file, image, objectUrl, baseScale, zoom: 1, x: (DIRECTOR_CROP_SIZE - width) / 2, y: (DIRECTOR_CROP_SIZE - height) / 2, pointerId: null };
+    document.querySelector("#director-crop-image").src = objectUrl;
+    document.querySelector("#director-cropper").hidden = false;
+    updateDirectorCropper();
+  };
+  image.src = objectUrl;
+}
+async function croppedDirectorPhoto() {
+  if (!directorCropState) return pendingDirectorPhotoFile;
+  const state = directorCropState;
+  const scale = state.baseScale * state.zoom;
+  const sourceSize = DIRECTOR_CROP_SIZE / scale;
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 512;
+  const context = canvas.getContext("2d");
+  context.drawImage(state.image, -state.x / scale, -state.y / scale, sourceSize, sourceSize, 0, 0, 512, 512);
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.9));
+  if (!blob) throw new Error("Não foi possível preparar o recorte da foto.");
+  return new File([blob], "diretor.jpg", { type: "image/jpeg" });
 }
 function previewPhoto(element, player, source = player?.photo) {
   element.innerHTML = source ? `<img src="${source}" alt="Prévia da foto de ${escapeHtml(displayName(player))}" />` : initials(player);
@@ -1311,6 +1412,27 @@ function openGameEditor(gameId) {
 function closePlayerEditModal() {
   document.querySelector("#player-edit-modal").hidden = true;
   pendingEditPhotoFile = null;
+}
+function closeDirectorEditModal() {
+  document.querySelector("#director-edit-modal").hidden = true;
+  pendingDirectorPhotoFile = null;
+  resetDirectorCropper();
+}
+function openDirectorEdit(directorId) {
+  if (!requireAdmin() || !directorsAvailable) return;
+  const director = data.directors.find(item => item.id === directorId);
+  if (!director) return;
+  document.querySelector("#edit-director-id").value = director.id;
+  document.querySelector("#edit-director-name").value = director.name;
+  document.querySelector("#edit-director-role").value = director.role;
+  document.querySelector("#edit-director-instagram").value = director.instagramUrl;
+  document.querySelector("#edit-director-photo").value = "";
+  resetDirectorCropper();
+  document.querySelector("#edit-director-photo-preview").innerHTML = director.photo
+    ? `<img src="${escapeHtml(director.photo)}" alt="Prévia da foto de ${escapeHtml(director.name)}" />`
+    : `<img src="assets/escudo-moderno-gpfc.png" alt="Escudo do G.P.F.C" />`;
+  pendingDirectorPhotoFile = null;
+  document.querySelector("#director-edit-modal").hidden = false;
 }
 function openPlayerEdit(playerId) {
   if (!requireAdmin()) return;
@@ -1435,6 +1557,7 @@ document.querySelectorAll("[data-admin-access]").forEach(button => button.addEve
 document.querySelector("#admin-access-button").addEventListener("click", () => isAdmin ? showView("admin") : openLoginModal());
 document.querySelectorAll("[data-close-login]").forEach(button => button.addEventListener("click", closeLoginModal));
 document.querySelectorAll("[data-close-player-edit]").forEach(button => button.addEventListener("click", closePlayerEditModal));
+document.querySelectorAll("[data-close-director-edit]").forEach(button => button.addEventListener("click", closeDirectorEditModal));
 document.querySelectorAll("[data-close-athlete-profile]").forEach(button => button.addEventListener("click", closeAthleteProfileModal));
 document.querySelector("#admin-logout").addEventListener("click", async () => { await supabaseClient.auth.signOut(); await refreshAuthState(); showView("inicio"); toast("Sessão encerrada."); });
 document.querySelectorAll(".ranking-tab").forEach(button => button.addEventListener("click", () => { selectedRanking = button.dataset.ranking; renderRanking(); }));
@@ -1473,6 +1596,46 @@ document.querySelector("#edit-player-photo").addEventListener("change", event =>
   const reader = new FileReader();
   reader.onload = () => previewPhoto(document.querySelector("#edit-photo-preview"), player, reader.result);
   reader.readAsDataURL(file);
+});
+document.querySelector("#edit-director-photo").addEventListener("change", event => {
+  const file = event.target.files[0];
+  if (!file || !validatePlayerPhoto(file, event.target)) return;
+  pendingDirectorPhotoFile = file;
+  startDirectorCropper(file);
+});
+document.querySelector("#director-crop-zoom").addEventListener("input", event => {
+  if (!directorCropState) return;
+  const state = directorCropState;
+  const previousScale = state.baseScale * state.zoom;
+  const sourceCenterX = (DIRECTOR_CROP_SIZE / 2 - state.x) / previousScale;
+  const sourceCenterY = (DIRECTOR_CROP_SIZE / 2 - state.y) / previousScale;
+  state.zoom = number(event.target.value) || 1;
+  const nextScale = state.baseScale * state.zoom;
+  state.x = DIRECTOR_CROP_SIZE / 2 - sourceCenterX * nextScale;
+  state.y = DIRECTOR_CROP_SIZE / 2 - sourceCenterY * nextScale;
+  updateDirectorCropper();
+});
+document.querySelector("#director-crop-area").addEventListener("pointerdown", event => {
+  if (!directorCropState) return;
+  event.preventDefault();
+  directorCropState.pointerId = event.pointerId;
+  directorCropState.dragStartX = event.clientX;
+  directorCropState.dragStartY = event.clientY;
+  directorCropState.initialX = directorCropState.x;
+  directorCropState.initialY = directorCropState.y;
+  event.currentTarget.setPointerCapture(event.pointerId);
+});
+document.querySelector("#director-crop-area").addEventListener("pointermove", event => {
+  const state = directorCropState;
+  if (!state || state.pointerId !== event.pointerId) return;
+  state.x = state.initialX + event.clientX - state.dragStartX;
+  state.y = state.initialY + event.clientY - state.dragStartY;
+  updateDirectorCropper();
+});
+document.querySelector("#director-crop-area").addEventListener("pointerup", event => {
+  if (!directorCropState || directorCropState.pointerId !== event.pointerId) return;
+  directorCropState.pointerId = null;
+  event.currentTarget.releasePointerCapture(event.pointerId);
 });
 document.querySelector("#login-form").addEventListener("submit", async event => {
   event.preventDefault();
@@ -2047,6 +2210,38 @@ document.querySelector("#admin-players-list").addEventListener("click", async ev
   if (error) { toast(`Não foi possível excluir: ${error.message}`); return; }
   await loadRemoteData();
   toast("Atleta excluído.");
+});
+document.querySelector("#admin-directors-list").addEventListener("click", event => {
+  const button = event.target.closest("[data-edit-director]");
+  if (button) openDirectorEdit(button.dataset.editDirector);
+});
+document.querySelector("#director-edit-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!requireAdmin()) return;
+  if (!directorsAvailable) { toast("Execute a migração 013 no Supabase antes de editar a diretoria."); return; }
+  const directorId = document.querySelector("#edit-director-id").value;
+  const director = data.directors.find(item => item.id === directorId);
+  if (!director) return;
+  const instagramUrl = document.querySelector("#edit-director-instagram").value.trim();
+  if (!isInstagramUrl(instagramUrl)) { toast("Informe um link válido do Instagram com https://."); return; }
+  let photoUrl = director.photo;
+  try {
+    if (pendingDirectorPhotoFile) photoUrl = await uploadDirectorPhoto(directorId, await croppedDirectorPhoto());
+  } catch (error) {
+    toast(`Não foi possível enviar a foto: ${error.message}`);
+    return;
+  }
+  const { error } = await supabaseClient.from("director_profiles").update({
+    full_name: document.querySelector("#edit-director-name").value.trim(),
+    role: document.querySelector("#edit-director-role").value.trim(),
+    instagram_url: instagramUrl,
+    photo_url: photoUrl,
+    updated_at: new Date().toISOString()
+  }).eq("id", directorId);
+  if (error) { toast(`Não foi possível salvar o diretor: ${error.message}`); return; }
+  closeDirectorEditModal();
+  await loadRemoteData();
+  toast("Diretor atualizado na página inicial.");
 });
 document.querySelector("#player-edit-form").addEventListener("submit", async event => {
   event.preventDefault();
