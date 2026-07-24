@@ -61,6 +61,15 @@
         </section>
         <section id="weekly-awards" class="section-wrap weekly-highlights" aria-label="Destaques da &uacute;ltima rodada"></section>
 
+        <section class="section-wrap section-heading-row round-clips-heading" aria-labelledby="clips-title">
+          <div>
+            <p class="eyebrow">OS MELHORES MOMENTOS</p>
+            <h2 id="clips-title">Lances da última rodada</h2>
+          </div>
+          <button class="text-button" data-view-target="rodadas">Ver resultados da rodada <span>→</span></button>
+        </section>
+        <section id="latest-round-clips" class="section-wrap highlight-clips" aria-label="Lances dos destaques da última rodada"></section>
+
         <section class="section-wrap two-columns">
           <div class="panel recent-panel">
             <div class="panel-heading"><h2>Últimas rodadas</h2><button class="text-button" data-view-target="rodadas">Ver rodadas <span>→</span></button></div>
@@ -183,6 +192,20 @@
               <div id="round-manual-awards" class="round-manual-awards"></div>
               <button id="save-round-awards" class="button primary" type="submit">Salvar destaques da rodada <span>→</span></button>
             </form>
+          </article>
+
+          <article class="admin-card highlight-clips-card">
+            <div class="admin-card-heading"><span class="step">05</span><div><h2>Lances dos destaques</h2><p>Cole o link do Reel já publicado para valorizar quem se destacou na rodada.</p></div></div>
+            <form id="highlight-clip-form" class="form-stack">
+              <div class="highlight-clip-fields">
+                <label>Atleta destaque<select id="highlight-clip-player" required></select></label>
+                <label>Tipo do lance<select id="highlight-clip-type"><option value="gol">Gol</option><option value="assistencia">Assistência</option><option value="defesa">Defesa</option><option value="drible">Drible</option><option value="outro">Outro lance</option></select></label>
+              </div>
+              <label>Link do Reel no Instagram<input id="highlight-clip-url" required type="url" inputmode="url" placeholder="https://www.instagram.com/reel/..." /></label>
+              <label>Legenda curta <input id="highlight-clip-caption" maxlength="180" placeholder="Ex.: Defesa decisiva no último jogo da rodada." /></label>
+              <button id="save-highlight-clip" class="button primary" type="submit">Adicionar lance <span>+</span></button>
+            </form>
+            <div id="highlight-clips-list" class="highlight-clips-admin-list"></div>
           </article>
 
           <article class="admin-card adjustment-card">
