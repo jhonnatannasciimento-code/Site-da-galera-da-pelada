@@ -1149,10 +1149,23 @@ function renderAll() {
   renderAdminHighlightClips();
   updateGameFormState();
 }
+const VIEW_PAGE_TITLES = {
+  inicio: "G.P.F.C - Galera da Pelada | Camaragibe PE - Desde 2016",
+  rankings: "Rankings | G.P.F.C - Galera da Pelada",
+  rodadas: "Rodadas | G.P.F.C - Galera da Pelada",
+  atletas: "Atletas | G.P.F.C - Galera da Pelada",
+  admin: "Admin | G.P.F.C - Galera da Pelada"
+};
+
 function showView(id) {
   if (id === "admin" && !isAdmin) return openLoginModal();
   document.querySelectorAll(".view").forEach(view => view.classList.toggle("active-view", view.id === id));
-  document.querySelectorAll(".nav-link").forEach(button => button.classList.toggle("active", button.dataset.viewTarget === id));
+  document.querySelectorAll(".nav-link").forEach(button => {
+    const isCurrentView = button.dataset.viewTarget === id;
+    button.classList.toggle("active", isCurrentView);
+    button.toggleAttribute("aria-current", isCurrentView);
+  });
+  document.title = VIEW_PAGE_TITLES[id] || VIEW_PAGE_TITLES.inicio;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function toast(message) {
