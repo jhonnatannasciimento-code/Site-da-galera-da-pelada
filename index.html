@@ -23,6 +23,7 @@
         <button class="nav-link active" data-view-target="inicio">Início</button>
         <button class="nav-link" data-view-target="rankings">Rankings</button>
         <button class="nav-link" data-view-target="rodadas">Rodadas</button>
+        <button class="nav-link" data-view-target="placares">Placares</button>
         <button class="nav-link" data-view-target="atletas">Atletas</button>
         <button id="admin-access-button" class="nav-link" type="button"><span id="admin-nav-label">Entrar</span></button>
       </nav>
@@ -70,7 +71,7 @@
 
         <section class="section-wrap two-columns">
           <div class="panel recent-panel">
-            <div class="panel-heading"><h2>Últimas rodadas</h2><button class="text-button" data-view-target="rankings">Histórico <span>→</span></button></div>
+            <div class="panel-heading"><h2>Últimas rodadas</h2><button class="text-button" data-view-target="placares">Ver placares <span>→</span></button></div>
             <div id="recent-games" class="recent-games"></div>
           </div>
           <div class="panel record-panel">
@@ -89,6 +90,18 @@
         <section class="round-public-history" aria-labelledby="round-history-title">
           <div class="section-heading-row"><div><p class="eyebrow">TEMPORADA 2026</p><h2 id="round-history-title">Histórico de rodadas</h2></div></div>
           <div id="public-round-history" class="public-round-history-list"></div>
+        </section>
+      </section>
+
+      <section id="placares" class="view section-wrap" aria-labelledby="scores-title">
+        <div class="page-heading">
+          <div><p class="eyebrow">RESULTADOS DA TEMPORADA</p><h1 id="scores-title">Placares</h1><p>Veja rapidamente todos os resultados, vencedores e jogos de cada rodada.</p></div>
+          <span class="admin-badge">● TEMPORADA 2026</span>
+        </div>
+        <article id="scores-current-round" class="scores-panel"></article>
+        <section class="scores-history" aria-labelledby="scores-history-title">
+          <div class="section-heading-row"><div><p class="eyebrow">RESULTADOS ANTERIORES</p><h2 id="scores-history-title">Todas as rodadas</h2></div></div>
+          <div id="scores-history-list" class="scores-history-list"></div>
         </section>
       </section>
 
@@ -167,13 +180,27 @@
               <div class="form-row"><label>Data da rodada<input id="game-date" required type="date" /></label><label>Local / quadra<a class="fixed-venue" data-tooltip="Clique para ir para o local." href="https://www.google.com/maps/dir/?api=1&amp;destination=-8.033411,-34.9597396" target="_blank" rel="noopener noreferrer">CT Caxangá</a><input id="game-place" type="hidden" value="CT Caxangá" /></label></div>
               <div class="match-score-heading"><span id="round-game-context" class="mini-label">SALVE A RODADA DA SEMANA PRIMEIRO</span><button id="new-game-button" class="icon-action tooltip-button" type="button" data-tooltip="Adicionar novo confronto" aria-label="Adicionar novo confronto">+</button></div>
               <div class="score-form">
-                <label>Time 1<select id="team-home" required aria-label="Primeiro time do confronto"><option value="1">Time 1</option><option value="2">Time 2</option><option value="3">Time 3</option><option value="4">Time 4</option><option value="5">Time 5</option><option value="6">Time 6</option><option value="7">Time 7</option><option value="8">Time 8</option><option value="9">Time 9</option><option value="10">Time 10</option></select></label><input id="score-home" required type="number" min="0" value="0" aria-label="Gols do primeiro time" /><span>×</span><input id="score-away" required type="number" min="0" value="0" aria-label="Gols do segundo time" /><label>Time 2<select id="team-away" required aria-label="Segundo time do confronto"><option value="1">Time 1</option><option value="2" selected>Time 2</option><option value="3">Time 3</option><option value="4">Time 4</option><option value="5">Time 5</option><option value="6">Time 6</option><option value="7">Time 7</option><option value="8">Time 8</option><option value="9">Time 9</option><option value="10">Time 10</option></select></label>
+                <label>Time 1<select id="team-home" required aria-label="Primeiro time do confronto"><option value="1">Time 1</option><option value="2">Time 2</option><option value="3">Time 3</option><option value="4">Time 4</option><option value="5">Time 5</option><option value="6">Time 6</option><option value="7">Time 7</option><option value="8">Time 8</option><option value="9">Time 9</option><option value="10">Time 10</option></select></label><input id="score-home" required readonly type="number" min="0" value="0" aria-label="Gols do primeiro time" /><span>×</span><input id="score-away" required readonly type="number" min="0" value="0" aria-label="Gols do segundo time" /><label>Time 2<select id="team-away" required aria-label="Segundo time do confronto"><option value="1">Time 1</option><option value="2" selected>Time 2</option><option value="3">Time 3</option><option value="4">Time 4</option><option value="5">Time 5</option><option value="6">Time 6</option><option value="7">Time 7</option><option value="8">Time 8</option><option value="9">Time 9</option><option value="10">Time 10</option></select></label>
               </div>
-              <div class="players-entry-heading"><div><strong>Estatísticas individuais</strong><small>Confirme a presença; os atletas que compareceram ficam no topo. Use 1 para registrar uma premiação na rodada.</small></div><button id="save-attendance-button" class="button secondary save-attendance" type="button">Salvar presença</button></div>
+              <p class="score-help">O placar é atualizado pelos gols registrados abaixo. Pênaltis e ficha decidem somente o vencedor.</p>
+              <div class="players-entry-heading"><div><strong>Confirmação de presença</strong><small>Marque quem compareceu. Somente esses atletas entram na montagem dos times.</small></div><button id="save-attendance-button" class="button secondary save-attendance" type="button">Salvar presença</button></div>
+              <div class="form-row match-result-fields"><label>Decisão do resultado<select id="result-method"><option value="regular">Placar normal</option><option value="penalties">Pênaltis</option><option value="ficha">Ficha</option></select></label><label>Time vencedor<select id="winner-side"><option value="">Definir pelo placar</option><option value="home">Primeiro time</option><option value="away">Segundo time</option></select></label></div>
               <div id="game-player-fields" class="game-player-fields"></div>
-              <div class="game-form-actions"><button id="cancel-game-edit" class="button secondary" type="button" hidden>Cancelar edição</button><button id="game-submit" class="button primary" type="submit">Salvar confronto <span>→</span></button></div>
+              <section id="lineup-builder" class="lineup-builder" aria-label="Montagem dos times"></section>
+              <section id="lineup-summary" class="lineup-summary" aria-label="Escalações do confronto"></section>
+              <section id="goal-events" class="goal-events" aria-label="Gols e assistências do confronto"></section>
+              <div class="game-form-actions"><button id="cancel-game-edit" class="button secondary" type="button" hidden>Cancelar edição</button><button id="game-submit" class="button primary" type="submit">Concluir confronto e publicar <span>→</span></button></div>
             </form>
             <section class="saved-games-section" aria-label="Confrontos por rodada"><div class="players-entry-heading"><div><strong>Confrontos por rodada</strong><small>Veja todos os jogos agrupados por sábado. Use Abrir ou Editar para corrigir.</small></div></div><div id="saved-games-list" class="saved-games-list"></div></section>
+          </article>
+
+          <article class="admin-card round-awards-card">
+            <div class="admin-card-heading"><span class="step">04</span><div><h2>Destaques da rodada</h2><p>Artilharia e garçom são calculados pelos jogos. Escolha Craque, Xerife e Paredão ao revisar a pelada.</p></div></div>
+            <div id="round-auto-highlights" class="round-auto-highlights"></div>
+            <form id="round-awards-form" class="form-stack">
+              <div id="round-manual-awards" class="round-manual-awards"></div>
+              <button id="save-round-awards" class="button primary" type="submit">Salvar destaques da rodada <span>→</span></button>
+            </form>
           </article>
 
           <article class="admin-card adjustment-card">

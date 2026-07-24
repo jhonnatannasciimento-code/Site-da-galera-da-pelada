@@ -8,8 +8,10 @@ const LAST_HISTORICAL_ROUND = 14;
 const DEFAULT_VENUE_NAME = "CT Caxangá";
 const DEFAULT_VENUE_MAP_URL = "https://www.google.com/maps/dir/?api=1&destination=-8.033411,-34.9597396";
 const STAT_FIELDS = ["goals", "assists", "craque", "xerife", "paredao"];
+const MATCH_STAT_FIELDS = ["goals", "assists"];
 const ADJUSTMENT_FIELDS = ["games", ...STAT_FIELDS];
-let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {} };
+const TEAM_LIMIT = 20;
+let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [] };
 let selectedRanking = "goals";
 let pendingPhotoFile = null;
 let pendingEditPhotoFile = null;
@@ -19,7 +21,12 @@ let editingGameId = null;
 let activeRoundId = null;
 let roundsAvailable = true;
 let attendanceAvailable = true;
+let rodizioAvailable = true;
+let goalEventsAvailable = true;
 let gameDraftEntries = null;
+let gameGoalEvents = [];
+let lineupSearchText = "";
+let goalEventCounter = 0;
 
 function number(value) { return Number(value || 0); }
 function initials(player) {
@@ -55,6 +62,30 @@ function getEditingGame() { return data.games.find(game => game.id === editingGa
 function getActiveRound() { return data.rounds.find(round => round.id === activeRoundId); }
 function getRoundById(roundId) { return data.rounds.find(round => round.id === roundId); }
 function teamLabel(numberValue) { return `Time ${numberValue}`; }
+function teamNumbers() { return Array.from({ length: TEAM_LIMIT }, (_, index) => String(index + 1)); }
+function fillTeamSelectors(homeValue = "1", awayValue = "2") {
+  const home = document.querySelector("#team-home");
+  const away = document.querySelector("#team-away");
+  if (!home || !away) return;
+  const optionMarkup = selected => teamNumbers().map(value => `<option value="${value}"${String(value) === String(selected) ? " selected" : ""}>${teamLabel(value)}</option>`).join("");
+  home.innerHTML = optionMarkup(homeValue);
+  away.innerHTML = optionMarkup(awayValue);
+  refreshWinnerChoices();
+}
+function ensureTeamSelectors() {
+  const home = document.querySelector("#team-home");
+  const away = document.querySelector("#team-away");
+  if (!home || !away || home.options.length >= TEAM_LIMIT) return;
+  fillTeamSelectors(home.value || "1", away.value || "2");
+}
+function refreshWinnerChoices(selected = document.querySelector("#winner-side")?.value || "") {
+  const winner = document.querySelector("#winner-side");
+  const home = document.querySelector("#team-home")?.value;
+  const away = document.querySelector("#team-away")?.value;
+  if (!winner || !home || !away) return;
+  winner.innerHTML = `<option value="">Definir pelo placar</option><option value="home">${teamLabel(home)}</option><option value="away">${teamLabel(away)}</option>`;
+  winner.value = ["home", "away"].includes(selected) ? selected : "";
+}
 function gameTeamNumber(game, side) {
   const label = side === "home" ? game?.home : game?.away;
   const match = String(label || "").match(/(\d+)/);
@@ -72,6 +103,29 @@ function attendanceMeta(status) {
     absent: { title: "Não compareceu", section: "Não compareceu na pelada", icon: "×" }
   }[status] || { title: "Dúvida", section: "Dúvida de presença", icon: "?" };
 }
+function roundGames(roundId) { return roundId ? data.games.filter(game => game.roundId === roundId).sort((a, b) => number(a.number) - number(b.number) || a.id.localeCompare(b.id)) : []; }
+function getNextGameNumber(roundId = getActiveRound()?.id) {
+  return Math.max(0, ...roundGames(roundId).map(game => number(game.number))) + 1;
+}
+function getNextTeamNumber(roundId = getActiveRound()?.id) {
+  const used = roundGames(roundId).flatMap(game => [number(gameTeamNumber(game, "home")), number(gameTeamNumber(game, "away"))]);
+  return String(Math.min(TEAM_LIMIT, Math.max(0, ...used) + 1));
+}
+function resultLabel(game) {
+  return { regular: "Placar normal", penalties: "Pênaltis", ficha: "Ficha" }[game?.resultMethod] || "Placar normal";
+}
+function getRoundStatLeaders(roundId, field) {
+  const totals = new Map();
+  roundGames(roundId).forEach(game => game.stats.forEach(entry => {
+    totals.set(entry.playerId, number(totals.get(entry.playerId)) + number(entry[field]));
+  }));
+  const highest = Math.max(0, ...totals.values());
+  if (!highest) return [];
+  return [...totals.entries()].filter(([, value]) => value === highest).map(([playerId, value]) => ({ player: data.players.find(player => player.id === playerId), value })).filter(item => item.player);
+}
+function getRoundAwardPlayers(roundId, category) {
+  return data.roundAwards.filter(item => item.roundId === roundId && item.category === category).map(item => data.players.find(player => player.id === item.playerId)).filter(Boolean);
+}
 function getNextRoundNumber() {
   return Math.max(LAST_HISTORICAL_ROUND, ...data.rounds.map(round => number(round.number))) + 1;
 }
@@ -86,6 +140,9 @@ function getGameTotals(playerId) {
     if (entry.playerId !== playerId) return;
     STAT_FIELDS.forEach(field => { totals[field] += number(entry[field]); });
   }));
+  data.roundAwards.forEach(award => {
+    if (award.playerId === playerId) totals[award.category] += 1;
+  });
   return totals;
 }
 function getRecordedGameCount(playerId) {
@@ -115,6 +172,10 @@ function getStats() {
     total.xerife += number(entry.xerife);
     total.paredao += number(entry.paredao);
   }));
+  data.roundAwards.forEach(award => {
+    const total = totals[award.playerId];
+    if (total) total[award.category] += 1;
+  });
   return Object.values(totals);
 }
 function bestStat(metric) {
@@ -273,6 +334,158 @@ function renderGameFields() {
     return `<div class="game-player-row" data-player-id="${player.id}"><div>${avatar(player)}<span><strong title="${escapeHtml(displayName(player))}">${escapeHtml(displayName(player))}</strong><small>#${shirtNumber(player)} · ${escapeHtml(player.position)}</small></span></div><select class="field-team" aria-label="Time de ${escapeHtml(player.name)}"><option value="">—</option><option value="home"${entry.team === "home" ? " selected" : ""}>T1</option><option value="away"${entry.team === "away" ? " selected" : ""}>T2</option></select><input class="field-goals" type="number" min="0" value="${number(entry.goals)}" title="Gols" aria-label="Gols de ${escapeHtml(player.name)}" /><input class="field-assists" type="number" min="0" value="${number(entry.assists)}" title="Assistências" aria-label="Assistências de ${escapeHtml(player.name)}" /><input class="field-craque" type="number" min="0" max="1" value="${number(entry.craque)}" title="Craque" aria-label="Craque de ${escapeHtml(player.name)}" /><input class="field-xerife" type="number" min="0" max="1" value="${number(entry.xerife)}" title="Xerife" aria-label="Xerife de ${escapeHtml(player.name)}" /><input class="field-paredao" type="number" min="0" max="1" value="${number(entry.paredao)}" title="Paredão" aria-label="Paredão de ${escapeHtml(player.name)}" /></div>`;
   }).join("") : `<div class="empty-state">Cadastre pelo menos um atleta antes de lançar uma rodada.</div>`;
 }
+function teamOptions(selected = "") {
+  const choices = [...new Set([document.querySelector("#team-home")?.value, document.querySelector("#team-away")?.value].filter(Boolean))];
+  return `<option value="">Fora do jogo</option>${choices.map(value => `<option value="${value}"${String(selected) === String(value) ? " selected" : ""}>${teamLabel(value)}</option>`).join("")}`;
+}
+function renderGamePlayerRow(player, entry) {
+  const present = entry.attendance === "present";
+  const disabled = present ? "" : " disabled";
+  return `<div class="game-player-row rodizio-player-row" data-player-id="${player.id}" data-attendance="${entry.attendance}"><div>${avatar(player)}<span><strong title="${escapeHtml(displayName(player))}">${escapeHtml(displayName(player))}</strong><small>#${shirtNumber(player)} · ${escapeHtml(player.position)}</small></span></div><div class="attendance-control"><span class="attendance-indicator ${entry.attendance}" aria-hidden="true">${attendanceMeta(entry.attendance).icon}</span><select class="field-attendance" aria-label="Presença de ${escapeHtml(player.name)}"><option value="present"${entry.attendance === "present" ? " selected" : ""}>Compareceu</option><option value="unknown"${entry.attendance === "unknown" ? " selected" : ""}>Dúvida</option><option value="absent"${entry.attendance === "absent" ? " selected" : ""}>Não compareceu</option></select></div><select class="field-team" aria-label="Time de ${escapeHtml(player.name)}"${disabled}>${teamOptions(entry.team)}</select><input class="field-goals" type="number" min="0" value="${number(entry.goals)}" title="Gols" aria-label="Gols de ${escapeHtml(player.name)}"${disabled} /><input class="field-assists" type="number" min="0" value="${number(entry.assists)}" title="Assistências" aria-label="Assistências de ${escapeHtml(player.name)}"${disabled} /></div>`;
+}
+function renderLineupSummary(rows = []) {
+  const container = document.querySelector("#lineup-summary");
+  if (!container) return;
+  const teams = [document.querySelector("#team-home")?.value, document.querySelector("#team-away")?.value].filter(Boolean);
+  const cards = teams.map(teamNumber => {
+    const selected = rows.filter(item => String(item.entry.team) === String(teamNumber));
+    const goalkeepers = selected.filter(item => isGoalkeeper(item.player));
+    const linePlayers = selected.filter(item => !isGoalkeeper(item.player));
+    const invalid = linePlayers.length > 5 || goalkeepers.length > 1;
+    return `<article class="lineup-card ${invalid ? "invalid" : ""}"><div><span>${teamLabel(teamNumber).toUpperCase()}</span><strong>${linePlayers.length}/5 linha · ${goalkeepers.length}/1 goleiro</strong></div><ul>${selected.length ? selected.map(item => `<li>${escapeHtml(displayName(item.player))}${isGoalkeeper(item.player) ? " <small>GOL</small>" : ""}</li>`).join("") : "<li class=\"lineup-empty\">Escolha os atletas abaixo.</li>"}</ul></article>`;
+  }).join("");
+  const latest = roundGames(getActiveRound()?.id).slice(-1)[0];
+  const copyAction = !editingGameId && latest?.winnerSide ? `<button id="copy-winner-button" class="button secondary" type="button">Copiar ${teamLabel(gameTeamNumber(latest, latest.winnerSide))} vencedor</button>` : "";
+  container.innerHTML = `<div class="lineup-summary-heading"><div><strong>Escalações do confronto</strong><small>Máximo de 5 atletas de linha e 1 goleiro por time.</small></div>${copyAction}</div><div class="lineup-cards">${cards}</div>`;
+}
+function renderGameFields() {
+  const container = document.querySelector("#game-player-fields");
+  const existing = new Map((getEditingGame()?.stats || []).map(entry => [entry.playerId, entry]));
+  const rows = data.players.map(player => {
+    const savedEntry = existing.get(player.id) || {};
+    const draftEntry = gameDraftEntries?.get(player.id) || {};
+    return { player, entry: { ...savedEntry, ...draftEntry, attendance: draftEntry.attendance || attendanceFor(player.id, savedEntry) } };
+  });
+  const header = `<div class="game-fields-header rodizio-fields-header"><span>Atleta</span><span>Presença</span><span>Escalação</span><span>Gols</span><span>Assistências</span></div>`;
+  const sections = ["present", "unknown", "absent"].map(status => {
+    const items = rows.filter(item => item.entry.attendance === status);
+    if (!items.length) return "";
+    const meta = attendanceMeta(status);
+    return `<section class="attendance-section ${status}"><div class="attendance-section-heading"><span class="attendance-indicator ${status}" aria-hidden="true">${meta.icon}</span><strong>${meta.section}</strong><small>${items.length} ${items.length === 1 ? "atleta" : "atletas"}</small></div>${items.map(item => renderGamePlayerRow(item.player, item.entry)).join("")}</section>`;
+  }).join("");
+  container.innerHTML = data.players.length ? header + sections : `<div class="empty-state">Cadastre pelo menos um atleta antes de lançar uma rodada.</div>`;
+  renderLineupSummary(rows);
+}
+function captureGameDraftEntries() {
+  const draft = new Map();
+  document.querySelectorAll(".game-player-row").forEach(row => {
+    draft.set(row.dataset.playerId, {
+      team: row.querySelector(".field-team").value,
+      attendance: row.querySelector(".field-attendance").value,
+      goals: number(row.querySelector(".field-goals").value),
+      assists: number(row.querySelector(".field-assists").value)
+    });
+  });
+  return draft;
+}
+function getGameDraftRows() {
+  const existing = new Map((getEditingGame()?.stats || []).map(entry => [entry.playerId, entry]));
+  return data.players.map(player => {
+    const savedEntry = existing.get(player.id) || {};
+    const draftEntry = gameDraftEntries?.get(player.id) || {};
+    const attendance = draftEntry.attendance || attendanceFor(player.id, savedEntry);
+    return { player, entry: { ...savedEntry, ...draftEntry, attendance, team: draftEntry.team ?? savedEntry.team ?? "" } };
+  });
+}
+function goalEventTotals() {
+  const totals = new Map();
+  gameGoalEvents.forEach(event => {
+    if (!event.scorerId) return;
+    totals.set(event.scorerId, { goals: number(totals.get(event.scorerId)?.goals) + 1, assists: number(totals.get(event.scorerId)?.assists) });
+    if (event.assisterId) totals.set(event.assisterId, { goals: number(totals.get(event.assisterId)?.goals), assists: number(totals.get(event.assisterId)?.assists) + 1 });
+  });
+  return totals;
+}
+function syncScoreFromGoalEvents() {
+  const home = document.querySelector("#team-home")?.value;
+  const away = document.querySelector("#team-away")?.value;
+  if (!home || !away) return;
+  document.querySelector("#score-home").value = gameGoalEvents.filter(event => String(event.team) === String(home) && event.scorerId).length;
+  document.querySelector("#score-away").value = gameGoalEvents.filter(event => String(event.team) === String(away) && event.scorerId).length;
+}
+function presentLineupPlayers(team, rows = getGameDraftRows()) {
+  return rows.filter(item => item.entry.attendance === "present" && String(item.entry.team) === String(team));
+}
+function validateLineupAssignment(player, team, rows = getGameDraftRows()) {
+  const members = presentLineupPlayers(team, rows).filter(item => item.player.id !== player.id);
+  const sameRole = members.filter(item => isGoalkeeper(item.player) === isGoalkeeper(player));
+  return isGoalkeeper(player) ? sameRole.length < 1 : sameRole.length < 5;
+}
+function captureGameDraftEntries() {
+  const previous = gameDraftEntries || new Map();
+  const draft = new Map(getGameDraftRows().map(({ player, entry }) => [player.id, { ...entry }]));
+  document.querySelectorAll(".game-player-row").forEach(row => {
+    const playerId = row.dataset.playerId;
+    const entry = draft.get(playerId) || previous.get(playerId) || {};
+    entry.attendance = row.querySelector(".field-attendance")?.value || entry.attendance || "unknown";
+    if (entry.attendance !== "present") entry.team = "";
+    draft.set(playerId, entry);
+  });
+  return draft;
+}
+function renderGamePlayerRow(player, entry) {
+  return `<div class="game-player-row presence-player-row" data-player-id="${player.id}" data-attendance="${entry.attendance}"><div>${avatar(player)}<span><strong title="${escapeHtml(displayName(player))}">${escapeHtml(displayName(player))}</strong><small>#${shirtNumber(player)} · ${escapeHtml(player.position)}</small></span></div><div class="attendance-control"><span class="attendance-indicator ${entry.attendance}" aria-hidden="true">${attendanceMeta(entry.attendance).icon}</span><select class="field-attendance" aria-label="Presença de ${escapeHtml(player.name)}"><option value="present"${entry.attendance === "present" ? " selected" : ""}>Compareceu</option><option value="unknown"${entry.attendance === "unknown" ? " selected" : ""}>Dúvida</option><option value="absent"${entry.attendance === "absent" ? " selected" : ""}>Não compareceu</option></select></div></div>`;
+}
+function renderLineupSummary(rows = getGameDraftRows()) {
+  const container = document.querySelector("#lineup-summary");
+  if (!container) return;
+  const teams = [document.querySelector("#team-home")?.value, document.querySelector("#team-away")?.value].filter(Boolean);
+  const cards = teams.map(teamNumber => {
+    const selected = presentLineupPlayers(teamNumber, rows);
+    const goalkeepers = selected.filter(item => isGoalkeeper(item.player));
+    const linePlayers = selected.filter(item => !isGoalkeeper(item.player));
+    const invalid = linePlayers.length > 5 || goalkeepers.length > 1;
+    return `<article class="lineup-card ${invalid ? "invalid" : ""}"><div><span>${teamLabel(teamNumber).toUpperCase()}</span><strong>${linePlayers.length}/5 linha · ${goalkeepers.length}/1 goleiro</strong></div><ul>${selected.length ? selected.map(item => `<li>${escapeHtml(displayName(item.player))}${isGoalkeeper(item.player) ? " <small>GOL</small>" : ""}<button type="button" class="remove-lineup-player" data-remove-player="${item.player.id}" aria-label="Remover ${escapeHtml(displayName(item.player))}">×</button></li>`).join("") : "<li class=\"lineup-empty\">Escolha os atletas abaixo.</li>"}</ul></article>`;
+  }).join("");
+  const latest = roundGames(getActiveRound()?.id).slice(-1)[0];
+  const copyAction = !editingGameId && latest?.winnerSide ? `<button id="copy-winner-button" class="button secondary" type="button">Levar ${teamLabel(gameTeamNumber(latest, latest.winnerSide))} vencedor</button>` : "";
+  container.innerHTML = `<div class="lineup-summary-heading"><div><strong>Times do confronto</strong><small>Até 5 atletas de linha e 1 goleiro por time.</small></div>${copyAction}</div><div class="lineup-cards">${cards}</div>`;
+}
+function renderLineupBuilder(rows = getGameDraftRows()) {
+  const container = document.querySelector("#lineup-builder");
+  if (!container) return;
+  const teams = [document.querySelector("#team-home")?.value, document.querySelector("#team-away")?.value].filter(Boolean);
+  const present = rows.filter(item => item.entry.attendance === "present");
+  const term = lineupSearchText.trim().toLocaleLowerCase("pt-BR");
+  const visible = present.filter(item => !term || `${displayName(item.player)} ${shirtNumber(item.player)}`.toLocaleLowerCase("pt-BR").includes(term));
+  const picker = visible.length ? visible.map(({ player, entry }) => `<article class="lineup-picker-player ${entry.team ? "assigned" : ""}">${avatar(player)}<div><strong>${escapeHtml(displayName(player))}</strong><small>#${shirtNumber(player)} · ${escapeHtml(player.position)}${entry.team ? ` · ${teamLabel(entry.team)}` : ""}</small></div><div class="lineup-player-actions">${teams.map(team => `<button type="button" data-assign-player="${player.id}" data-assign-team="${team}"${String(entry.team) === String(team) ? " disabled" : ""}>+ ${teamLabel(team)}</button>`).join("")}</div></article>`).join("") : `<p class="lineup-builder-empty">${present.length ? "Nenhum atleta encontrado." : "Confirme quem compareceu para montar os times."}</p>`;
+  container.innerHTML = `<div class="lineup-builder-heading"><div><p class="eyebrow">MONTAR CONFRONTO</p><h3>Atletas que compareceram</h3><small>Pesquise ou clique no time para escalar. Um atleta pode voltar em outro jogo da rodada.</small></div><label class="lineup-search">⌕<input id="lineup-player-search" value="${escapeHtml(lineupSearchText)}" placeholder="Buscar atleta ou camisa" /></label></div><div class="lineup-picker-list">${picker}</div>`;
+}
+function renderGoalEvents(rows = getGameDraftRows()) {
+  const container = document.querySelector("#goal-events");
+  if (!container) return;
+  const teams = [document.querySelector("#team-home")?.value, document.querySelector("#team-away")?.value].filter(Boolean);
+  const optionPlayers = (team, selected, blank, omitId = "") => `${blank ? `<option value="">${blank}</option>` : ""}${presentLineupPlayers(team, rows).filter(item => item.player.id !== omitId).map(item => `<option value="${item.player.id}"${item.player.id === selected ? " selected" : ""}>${escapeHtml(displayName(item.player))}</option>`).join("")}`;
+  const events = gameGoalEvents.map((event, index) => `<div class="goal-event-row" data-goal-event-id="${event.id}"><span class="goal-event-number">${index + 1}</span><select class="goal-team" aria-label="Time do gol">${teams.map(team => `<option value="${team}"${String(event.team) === String(team) ? " selected" : ""}>${teamLabel(team)}</option>`).join("")}</select><select class="goal-scorer" aria-label="Quem fez o gol">${optionPlayers(event.team, event.scorerId, "Quem fez o gol?")}</select><select class="goal-assister" aria-label="Quem deu a assistência">${optionPlayers(event.team, event.assisterId, "Sem assistência", event.scorerId)}</select><button class="remove-goal-event" type="button" aria-label="Remover gol">×</button></div>`).join("");
+  const canAddGoal = teams.length === 2 && teams.some(team => presentLineupPlayers(team, rows).length);
+  container.innerHTML = `<div class="goal-events-heading"><div><p class="eyebrow">GOLS DO CONFRONTO</p><h3>Artilharia e assistências</h3><small>Registre cada gol. O placar e as estatísticas serão calculados automaticamente.</small></div><button id="add-goal-event" class="button secondary" type="button"${canAddGoal ? "" : " disabled"}>+ Adicionar gol</button></div><div class="goal-events-list">${events || `<p class="goal-events-empty">Ainda não há gols neste confronto.</p>`}</div>`;
+  syncScoreFromGoalEvents();
+}
+function renderGameFields() {
+  const container = document.querySelector("#game-player-fields");
+  const rows = getGameDraftRows();
+  const header = `<div class="game-fields-header presence-fields-header"><span>Atleta</span><span>Presença</span></div>`;
+  const sections = ["present", "unknown", "absent"].map(status => {
+    const items = rows.filter(item => item.entry.attendance === status);
+    if (!items.length) return "";
+    const meta = attendanceMeta(status);
+    return `<section class="attendance-section ${status}"><div class="attendance-section-heading"><span class="attendance-indicator ${status}" aria-hidden="true">${meta.icon}</span><strong>${meta.section}</strong><small>${items.length} ${items.length === 1 ? "atleta" : "atletas"}</small></div>${items.map(item => renderGamePlayerRow(item.player, item.entry)).join("")}</section>`;
+  }).join("");
+  container.innerHTML = data.players.length ? header + sections : `<div class="empty-state">Cadastre pelo menos um atleta antes de lançar uma rodada.</div>`;
+  renderLineupBuilder(rows);
+  renderLineupSummary(rows);
+  renderGoalEvents(rows);
+}
 function entrySummary(entry) {
   const items = [];
   if (number(entry.goals)) items.push(`${entry.goals}G`);
@@ -305,6 +518,22 @@ function savedGameMarkup(game, index) {
 function publicGameMarkup(game, index) {
   return `<article class="saved-game round-saved-game public-saved-game"><div class="saved-game-top"><div class="round-game-score"><span class="round-game-number">JOGO ${String(index + 1).padStart(2, "0")}</span><strong>${escapeHtml(game.home)} <b>${game.homeScore} × ${game.awayScore}</b> ${escapeHtml(game.away)}</strong></div></div><div class="saved-game-rosters"><section><span>${escapeHtml(game.home)}</span>${renderTeamRoster(game, "home")}</section><section><span>${escapeHtml(game.away)}</span>${renderTeamRoster(game, "away")}</section></div></article>`;
 }
+function highlightGroupMarkup(title, kicker, players, valueField = null) {
+  const visible = players.filter(Boolean);
+  return `<article class="round-highlight-group"><span>${kicker}</span><strong>${title}</strong>${visible.length ? `<div class="round-highlight-players">${visible.map(item => {
+    const player = item.player || item;
+    const value = valueField && item.value ? `<small>${item.value} ${valueField}</small>` : "";
+    return `<div>${avatar(player)}<p>${escapeHtml(displayName(player))}${value}</p></div>`;
+  }).join("")}</div>` : `<p class="round-highlight-empty">Aguardando definição</p>`}</article>`;
+}
+function roundHighlightsMarkup(roundId, compact = false) {
+  const goals = getRoundStatLeaders(roundId, "goals");
+  const assists = getRoundStatLeaders(roundId, "assists");
+  const craque = getRoundAwardPlayers(roundId, "craque");
+  const xerife = getRoundAwardPlayers(roundId, "xerife");
+  const paredao = getRoundAwardPlayers(roundId, "paredao");
+  return `<section class="round-highlights ${compact ? "compact" : ""}"><div class="round-highlights-title"><p class="eyebrow">DESTAQUES DA RODADA</p><h3>Quem se destacou</h3></div><div class="round-highlights-grid">${highlightGroupMarkup("Artilheiro", "GOLS", goals, "gols")}${highlightGroupMarkup("Garçom", "ASSISTÊNCIAS", assists, "assist.")}${highlightGroupMarkup("Craque", "ESCOLHA DA RODADA", craque)}${highlightGroupMarkup("Xerife", "DEFESA", xerife)}${highlightGroupMarkup("Paredão", "GOLEIROS", paredao)}</div></section>`;
+}
 function attendanceListMarkup(roundId) {
   if (!attendanceAvailable) return "";
   const list = ["present", "unknown", "absent"].map(status => {
@@ -313,6 +542,36 @@ function attendanceListMarkup(roundId) {
     return `<section class="public-attendance-list ${status}"><div><span class="attendance-indicator ${status}" aria-hidden="true">${meta.icon}</span><strong>${meta.section}</strong><small>${players.length}</small></div>${players.length ? `<ul>${players.map(player => `<li>${escapeHtml(displayName(player))}</li>`).join("")}</ul>` : `<p>Nenhum atleta.</p>`}</section>`;
   }).join("");
   return `<section class="public-attendance"><div class="public-attendance-heading"><div><p class="eyebrow">PRESENÇA DA RODADA</p><h3>Lista de presença</h3></div><small>Atualizada pelo organizador</small></div><div class="public-attendance-grid">${list}</div></section>`;
+}
+function roundResults(roundId) {
+  const totals = new Map();
+  const get = team => {
+    if (!totals.has(team)) totals.set(team, { team, wins: 0, losses: 0, draws: 0, goalsFor: 0, goalsAgainst: 0 });
+    return totals.get(team);
+  };
+  roundGames(roundId).forEach(game => {
+    const home = get(game.home);
+    const away = get(game.away);
+    home.goalsFor += number(game.homeScore);
+    home.goalsAgainst += number(game.awayScore);
+    away.goalsFor += number(game.awayScore);
+    away.goalsAgainst += number(game.homeScore);
+    const winner = game.winnerSide || (number(game.homeScore) > number(game.awayScore) ? "home" : number(game.awayScore) > number(game.homeScore) ? "away" : "");
+    if (winner === "home") { home.wins += 1; away.losses += 1; }
+    else if (winner === "away") { away.wins += 1; home.losses += 1; }
+    else { home.draws += 1; away.draws += 1; }
+  });
+  return [...totals.values()].sort((a, b) => b.wins - a.wins || a.losses - b.losses || b.goalsFor - a.goalsFor || a.team.localeCompare(b.team));
+}
+function roundGamesSummaryMarkup(roundId, compact = false) {
+  const round = getRoundById(roundId);
+  const results = roundResults(roundId);
+  if (!round || !results.length) return "";
+  const highestWins = Math.max(...results.map(item => item.wins));
+  const leaders = results.filter(item => item.wins === highestWins && highestWins > 0);
+  const leaderText = leaders.length ? leaders.map(item => item.team).join(" · ") : "Ainda sem vencedor";
+  const leaderWins = highestWins === 1 ? "1 vitória" : `${highestWins} vitórias`;
+  return `<section class="round-games-summary ${compact ? "compact" : ""}"><div class="round-games-summary-heading"><div><p class="eyebrow">JOGOS DA RODADA ${round.number}</p><h3>Vitórias e derrotas</h3></div><div class="round-most-wins"><span>TIME QUE MAIS VENCEU</span><strong>${escapeHtml(leaderText)}</strong><small>${leaders.length ? leaderWins : "Aguardando resultado"}</small></div></div><div class="round-results-grid">${results.map(item => `<article class="round-result-card ${leaders.includes(item) ? "leader" : ""}"><strong>${escapeHtml(item.team)}</strong><span><b>${item.wins}</b> V · <b>${item.losses}</b> D${item.draws ? ` · ${item.draws} E` : ""}</span><small>${item.goalsFor} gols feitos · ${item.goalsAgainst} sofridos</small></article>`).join("")}</div></section>`;
 }
 function renderPublicRounds() {
   const currentContainer = document.querySelector("#public-round-week");
@@ -331,6 +590,7 @@ function renderPublicRounds() {
   }
   const games = data.games.filter(game => game.roundId === currentRound.id).sort((a, b) => a.id.localeCompare(b.id));
   currentContainer.innerHTML = `<div class="round-public-heading"><span class="round-status ${currentRound.status}">${roundStatusLabel(currentRound).toUpperCase()}</span><div><p class="eyebrow">${roundLabel(currentRound).toUpperCase()}</p><h2>${formatDate(currentRound.date)}</h2><p>${escapeHtml(currentRound.place || DEFAULT_VENUE_NAME)} · ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</p>${venueMapLink("Abrir CT Caxangá no GPS")}</div></div><div class="round-games-list public-round-games">${games.length ? games.map(publicGameMarkup).join("") : `<div class="saved-game-empty">Os confrontos desta rodada ainda serão definidos.</div>`}</div>`;
+  currentContainer.insertAdjacentHTML("beforeend", roundHighlightsMarkup(currentRound.id));
   currentContainer.insertAdjacentHTML("beforeend", attendanceListMarkup(currentRound.id));
   const historicalRounds = rounds.filter(round => round.id !== currentRound.id);
   historyContainer.innerHTML = historicalRounds.length ? historicalRounds.map(round => {
@@ -338,19 +598,131 @@ function renderPublicRounds() {
     return `<article class="round-public-history-item"><div><span class="mini-label">${roundLabel(round).toUpperCase()} · ${roundStatusLabel(round).toUpperCase()}</span><strong>${formatDate(round.date)}</strong><small>${escapeHtml(round.place || DEFAULT_VENUE_NAME)} · ${roundGames.length} ${roundGames.length === 1 ? "confronto" : "confrontos"}</small>${venueMapLink("Abrir no GPS")}</div><div class="round-games-list">${roundGames.length ? roundGames.map(publicGameMarkup).join("") : `<div class="saved-game-empty">Nenhum confronto salvo.</div>`}</div></article>`;
   }).join("") : `<div class="empty-state">As próximas rodadas finalizadas aparecerão aqui.</div>`;
 }
+function gameResultMarkup(game) {
+  if (!game.winnerSide) return "";
+  return `<small class="game-result-method">${resultLabel(game)} · ${escapeHtml(game.winnerSide === "home" ? game.home : game.away)} venceu</small>`;
+}
+function savedGameMarkup(game, index) {
+  const homeState = game.winnerSide === "home" ? "winner" : game.winnerSide ? "loser" : "";
+  const awayState = game.winnerSide === "away" ? "winner" : game.winnerSide ? "loser" : "";
+  const gameNumber = game.number || index + 1;
+  return `<article class="saved-game round-saved-game"><div class="saved-game-top"><div class="round-game-score"><span class="round-game-number">JOGO ${String(gameNumber).padStart(2, "0")}</span><strong>${escapeHtml(game.home)} <b>${game.homeScore} × ${game.awayScore}</b> ${escapeHtml(game.away)}</strong>${gameResultMarkup(game)}</div><button class="button secondary edit-game" data-edit-game="${game.id}" type="button">Editar</button></div><div class="saved-game-rosters"><section class="${homeState}"><span>${homeState === "winner" ? "● VENCEU · " : homeState === "loser" ? "× PERDEU · " : ""}${escapeHtml(game.home)}</span>${renderTeamRoster(game, "home")}</section><section class="${awayState}"><span>${awayState === "winner" ? "● VENCEU · " : awayState === "loser" ? "× PERDEU · " : ""}${escapeHtml(game.away)}</span>${renderTeamRoster(game, "away")}</section></div></article>`;
+}
+function publicGameMarkup(game, index) {
+  const homeState = game.winnerSide === "home" ? "winner" : game.winnerSide ? "loser" : "";
+  const awayState = game.winnerSide === "away" ? "winner" : game.winnerSide ? "loser" : "";
+  const gameNumber = game.number || index + 1;
+  return `<article class="saved-game round-saved-game public-saved-game"><div class="saved-game-top"><div class="round-game-score"><span class="round-game-number">JOGO ${String(gameNumber).padStart(2, "0")}</span><strong>${escapeHtml(game.home)} <b>${game.homeScore} × ${game.awayScore}</b> ${escapeHtml(game.away)}</strong>${gameResultMarkup(game)}</div></div><div class="saved-game-rosters"><section class="${homeState}"><span>${homeState === "winner" ? "● VENCEU · " : homeState === "loser" ? "× PERDEU · " : ""}${escapeHtml(game.home)}</span>${renderTeamRoster(game, "home")}</section><section class="${awayState}"><span>${awayState === "winner" ? "● VENCEU · " : awayState === "loser" ? "× PERDEU · " : ""}${escapeHtml(game.away)}</span>${renderTeamRoster(game, "away")}</section></div></article>`;
+}
+function renderPublicRounds() {
+  const currentContainer = document.querySelector("#public-round-week");
+  const historyContainer = document.querySelector("#public-round-history");
+  if (!roundsAvailable) {
+    currentContainer.innerHTML = `<div class="empty-state">O calendário de rodadas será liberado em breve.</div>`;
+    historyContainer.innerHTML = `<div class="empty-state">Ainda não há rodadas publicadas.</div>`;
+    return;
+  }
+  const rounds = [...data.rounds].sort((a, b) => b.number - a.number);
+  const currentRound = rounds.find(round => round.status === "draft") || rounds[0];
+  if (!currentRound) {
+    currentContainer.innerHTML = `<div class="round-public-heading"><span class="round-status draft">PRÓXIMA RODADA</span><div><p class="eyebrow">A CAMINHO</p><h2>Rodada ${getNextRoundNumber()}</h2><p>Os confrontos e destaques aparecerão aqui assim que o organizador abrir a rodada.</p></div></div>`;
+    historyContainer.innerHTML = `<div class="empty-state">A Rodada 15 será a primeira registrada neste novo formato.</div>`;
+    return;
+  }
+  const games = roundGames(currentRound.id);
+  currentContainer.innerHTML = `<div class="round-public-heading"><span class="round-status ${currentRound.status}">${roundStatusLabel(currentRound).toUpperCase()}</span><div><p class="eyebrow">${roundLabel(currentRound).toUpperCase()}</p><h2>${formatDate(currentRound.date)}</h2><p>${escapeHtml(currentRound.place || DEFAULT_VENUE_NAME)} · ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</p>${venueMapLink("Abrir CT Caxangá no GPS")}</div></div><div class="round-games-list public-round-games">${games.length ? games.map(publicGameMarkup).join("") : `<div class="saved-game-empty">Os confrontos desta rodada ainda serão definidos.</div>`}</div>${roundGamesSummaryMarkup(currentRound.id)}${roundHighlightsMarkup(currentRound.id)}${attendanceListMarkup(currentRound.id)}`;
+  const historicalRounds = rounds.filter(round => round.id !== currentRound.id);
+  historyContainer.innerHTML = historicalRounds.length ? historicalRounds.map(round => {
+    const roundGamesList = roundGames(round.id);
+    return `<article class="round-public-history-item"><div><span class="mini-label">${roundLabel(round).toUpperCase()} · ${roundStatusLabel(round).toUpperCase()}</span><strong>${formatDate(round.date)}</strong><small>${escapeHtml(round.place || DEFAULT_VENUE_NAME)} · ${roundGamesList.length} ${roundGamesList.length === 1 ? "confronto" : "confrontos"}</small>${venueMapLink("Abrir no GPS")}</div><div class="round-games-list">${roundGamesList.length ? roundGamesList.map(publicGameMarkup).join("") : `<div class="saved-game-empty">Nenhum confronto salvo.</div>`}</div>${roundGamesSummaryMarkup(round.id, true)}${roundHighlightsMarkup(round.id, true)}${attendanceListMarkup(round.id)}</article>`;
+  }).join("") : `<div class="empty-state">As próximas rodadas finalizadas aparecerão aqui.</div>`;
+}
+function scoreGameMarkup(game, index) {
+  const winner = game.winnerSide === "home" ? game.home : game.winnerSide === "away" ? game.away : "";
+  const gameNumber = game.number || index + 1;
+  return `<article class="score-game"><span class="score-game-number">JOGO ${String(gameNumber).padStart(2, "0")}</span><div class="score-game-main"><strong class="${game.winnerSide === "home" ? "winner" : ""}">${escapeHtml(game.home)}</strong><b>${game.homeScore} <i>×</i> ${game.awayScore}</b><strong class="${game.winnerSide === "away" ? "winner" : ""}">${escapeHtml(game.away)}</strong></div><small>${winner ? `${resultLabel(game)} · ${escapeHtml(winner)} venceu` : "Resultado em aberto"}</small></article>`;
+}
+function renderScores() {
+  const current = document.querySelector("#scores-current-round");
+  const history = document.querySelector("#scores-history-list");
+  if (!roundsAvailable) {
+    current.innerHTML = `<div class="empty-state">Os placares serão publicados quando as rodadas forem abertas.</div>`;
+    history.innerHTML = "";
+    return;
+  }
+  const rounds = [...data.rounds].sort((a, b) => b.number - a.number);
+  const currentRound = rounds.find(round => round.status === "draft") || rounds[0];
+  if (!currentRound) {
+    current.innerHTML = `<div class="empty-state">A Rodada ${getNextRoundNumber()} ainda não possui placares.</div>`;
+    history.innerHTML = "";
+    return;
+  }
+  const games = roundGames(currentRound.id);
+  current.innerHTML = `<div class="scores-current-heading"><div><p class="eyebrow">JOGOS DA RODADA ${currentRound.number}</p><h2>${formatDate(currentRound.date)}</h2><small>${games.length} ${games.length === 1 ? "confronto" : "confrontos"} registrado${games.length === 1 ? "" : "s"}</small></div><span class="round-status ${currentRound.status}">${roundStatusLabel(currentRound).toUpperCase()}</span></div><div class="scores-games-list">${games.length ? games.map(scoreGameMarkup).join("") : `<div class="empty-state">Os confrontos serão publicados aqui após a pelada.</div>`}</div>${roundGamesSummaryMarkup(currentRound.id)}`;
+  const pastRounds = rounds.filter(round => round.id !== currentRound.id);
+  history.innerHTML = pastRounds.length ? pastRounds.map(round => {
+    const gamesOfRound = roundGames(round.id);
+    return `<article class="scores-history-round"><div class="scores-history-heading"><div><p class="eyebrow">JOGOS DA RODADA ${round.number}</p><strong>${formatDate(round.date)}</strong></div><span>${gamesOfRound.length} ${gamesOfRound.length === 1 ? "jogo" : "jogos"}</span></div><div class="scores-games-list">${gamesOfRound.length ? gamesOfRound.map(scoreGameMarkup).join("") : `<div class="empty-state">Nenhum confronto salvo.</div>`}</div>${roundGamesSummaryMarkup(round.id, true)}</article>`;
+  }).join("") : `<div class="empty-state">Os placares anteriores aparecerão aqui.</div>`;
+}
 function renderSavedGames() {
   const container = document.querySelector("#saved-games-list");
   const groups = [...data.rounds].sort((a, b) => b.number - a.number).map(round => ({
     round,
-    games: data.games.filter(game => game.roundId === round.id).sort((a, b) => a.id.localeCompare(b.id))
+    games: roundGames(round.id)
   }));
   const legacyGames = data.games.filter(game => !game.roundId).sort((a, b) => b.date.localeCompare(a.date));
   if (legacyGames.length) groups.push({ round: null, games: legacyGames });
   container.innerHTML = groups.length ? groups.map(group => {
     const { round, games } = group;
     if (!round) return `<section class="round-history legacy-history"><div class="round-history-heading"><div><span class="mini-label">REGISTROS ANTERIORES</span><strong>Confrontos sem rodada</strong><small>Partidas salvas antes do novo formato semanal.</small></div></div><div class="round-games-list">${games.map(savedGameMarkup).join("")}</div></section>`;
-    return `<section class="round-history ${round.id === activeRoundId ? "active-round-history" : ""}"><div class="round-history-heading"><div><span class="mini-label">${roundLabel(round).toUpperCase()} · ${roundStatusLabel(round).toUpperCase()}</span><strong>${formatDate(round.date)}</strong><small>${escapeHtml(round.place || "Local não informado")} · ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</small></div><button class="button secondary open-round" data-open-round="${round.id}" type="button">Abrir rodada</button></div><div class="round-games-list">${games.length ? games.map(savedGameMarkup).join("") : `<div class="saved-game-empty">Nenhum confronto salvo nesta rodada.</div>`}</div></section>`;
+    return `<section class="round-history ${round.id === activeRoundId ? "active-round-history" : ""}"><div class="round-history-heading"><div><span class="mini-label">${roundLabel(round).toUpperCase()} · ${roundStatusLabel(round).toUpperCase()}</span><strong>${formatDate(round.date)}</strong><small>${escapeHtml(round.place || "Local não informado")} · ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</small></div><button class="button secondary open-round" data-open-round="${round.id}" type="button">Abrir rodada</button></div><div class="round-games-list">${games.length ? games.map(savedGameMarkup).join("") : `<div class="saved-game-empty">Nenhum confronto salvo nesta rodada.</div>`}</div>${roundGamesSummaryMarkup(round.id, true)}</section>`;
   }).join("") : `<div class="empty-state saved-games-empty">A Rodada 15 ainda não possui confrontos salvos.</div>`;
+}
+function roundParticipants(roundId) {
+  const ids = new Set(roundGames(roundId).flatMap(game => game.stats.map(entry => entry.playerId)));
+  Object.entries(data.attendance[roundId] || {}).forEach(([playerId, status]) => { if (status === "present") ids.add(playerId); });
+  return data.players.filter(player => ids.has(player.id));
+}
+function renderRoundAwards() {
+  const autoContainer = document.querySelector("#round-auto-highlights");
+  const manualContainer = document.querySelector("#round-manual-awards");
+  const submit = document.querySelector("#save-round-awards");
+  const round = getActiveRound();
+  if (!rodizioAvailable) {
+    autoContainer.innerHTML = `<p class="adjustment-note">Execute a migração 009 no Supabase para salvar os destaques por rodada.</p>`;
+    manualContainer.innerHTML = "";
+    submit.disabled = true;
+    return;
+  }
+  if (!round) {
+    autoContainer.innerHTML = `<p class="adjustment-note">Abra uma rodada para calcular e salvar seus destaques.</p>`;
+    manualContainer.innerHTML = "";
+    submit.disabled = true;
+    return;
+  }
+  const artilheiros = getRoundStatLeaders(round.id, "goals");
+  const garcons = getRoundStatLeaders(round.id, "assists");
+  autoContainer.innerHTML = `<div class="auto-highlight"><span>ARTILHARIA</span><strong>${artilheiros.length ? artilheiros.map(item => `${escapeHtml(displayName(item.player))} (${item.value})`).join(" · ") : "Sem gols registrados"}</strong></div><div class="auto-highlight"><span>GARÇOM</span><strong>${garcons.length ? garcons.map(item => `${escapeHtml(displayName(item.player))} (${item.value})`).join(" · ") : "Sem assistências registradas"}</strong></div>`;
+  const players = roundParticipants(round.id);
+  const savedCraque = getRoundAwardPlayers(round.id, "craque")[0]?.id || "";
+  const savedXerifes = new Set(getRoundAwardPlayers(round.id, "xerife").map(player => player.id));
+  const savedParedoes = new Set(getRoundAwardPlayers(round.id, "paredao").map(player => player.id));
+  const playerOptions = players.map(player => `<option value="${player.id}"${player.id === savedCraque ? " selected" : ""}>${escapeHtml(displayName(player))} · #${shirtNumber(player)}</option>`).join("");
+  const checkboxList = (category, selected, onlyGoalkeepers = false) => {
+    const list = players.filter(player => !onlyGoalkeepers || isGoalkeeper(player));
+    return list.length ? `<div class="award-check-list">${list.map(player => `<label><input type="checkbox" data-award-category="${category}" value="${player.id}"${selected.has(player.id) ? " checked" : ""} /> ${escapeHtml(displayName(player))}</label>`).join("")}</div>` : `<p class="adjustment-note">${onlyGoalkeepers ? "Nenhum goleiro presente na rodada." : "Confirme a presença ou registre um jogo primeiro."}</p>`;
+  };
+  manualContainer.innerHTML = `<label>Craque da rodada<select id="award-craque"><option value="">Selecione um atleta</option>${playerOptions}</select></label><div class="manual-award-group"><strong>Xerife da rodada <small>Escolha até 2 atletas</small></strong>${checkboxList("xerife", savedXerifes)}</div><div class="manual-award-group"><strong>Paredão da rodada <small>Escolha até 2 goleiros</small></strong>${checkboxList("paredao", savedParedoes, true)}</div>`;
+  submit.disabled = false;
+}
+function renderHomeHighlights() {
+  const draftRound = [...data.rounds].filter(item => item.status === "draft").sort((a, b) => b.number - a.number)[0];
+  const round = draftRound || [...data.rounds].sort((a, b) => b.number - a.number).find(item => roundGames(item.id).length);
+  if (!round) return;
+  document.querySelector("#weekly-awards").innerHTML = roundGames(round.id).length
+    ? roundHighlightsMarkup(round.id, true)
+    : `<div class="empty-state">${roundLabel(round)} está aberta. Os destaques aparecerão após os jogos.</div>`;
 }
 function renderAdminPlayers() {
   const container = document.querySelector("#admin-players-list");
@@ -419,23 +791,44 @@ function updateGameFormState() {
   const editing = Boolean(editingGameId);
   const activeRound = getActiveRound();
   const submit = document.querySelector("#game-submit");
+  const newGameButton = document.querySelector("#new-game-button");
   submit.innerHTML = editing ? "Salvar alterações <span>→</span>" : activeRound ? `Salvar confronto na ${roundLabel(activeRound)} <span>→</span>` : "Salve a rodada para lançar confrontos <span>→</span>";
-  submit.disabled = !roundsAvailable || (!editing && !activeRound);
-  document.querySelector("#new-game-button").disabled = !roundsAvailable || !activeRound;
+  submit.disabled = !roundsAvailable || !attendanceAvailable || !rodizioAvailable || !goalEventsAvailable || (!editing && !activeRound);
+  newGameButton.disabled = false;
+  newGameButton.dataset.tooltip = !roundsAvailable ? "Execute a migração 007 para ativar as rodadas." : !attendanceAvailable ? "Execute a migração 008 para ativar a presença." : !rodizioAvailable ? "Execute a migração 009 para ativar o modo Rodízio." : !activeRound ? "Salve a Rodada da Semana primeiro." : "Adicionar novo confronto";
+  newGameButton.classList.toggle("needs-setup", !roundsAvailable || !attendanceAvailable || !rodizioAvailable || !activeRound);
+  document.querySelector("#save-attendance-button").disabled = !roundsAvailable || !attendanceAvailable || !activeRound;
+  document.querySelector("#cancel-game-edit").hidden = !editing;
+  syncGameFormWithRound();
+}
+function updateGameFormState() {
+  const editing = Boolean(editingGameId);
+  const activeRound = getActiveRound();
+  const submit = document.querySelector("#game-submit");
+  const newGameButton = document.querySelector("#new-game-button");
+  submit.innerHTML = editing ? "Salvar alterações <span>→</span>" : activeRound ? `Concluir confronto e publicar <span>→</span>` : "Salve a rodada para lançar confrontos <span>→</span>";
+  submit.disabled = !roundsAvailable || !attendanceAvailable || !rodizioAvailable || !goalEventsAvailable || (!editing && !activeRound);
+  newGameButton.disabled = false;
+  newGameButton.dataset.tooltip = !roundsAvailable ? "Execute a migração 007 para ativar as rodadas." : !attendanceAvailable ? "Execute a migração 008 para ativar a presença." : !rodizioAvailable ? "Execute a migração 009 para ativar o modo Rodízio." : !goalEventsAvailable ? "Execute a migração 010 para registrar gols e assistências." : !activeRound ? "Salve a Rodada da Semana primeiro." : "Adicionar novo confronto";
+  newGameButton.classList.toggle("needs-setup", !roundsAvailable || !attendanceAvailable || !rodizioAvailable || !goalEventsAvailable || !activeRound);
   document.querySelector("#save-attendance-button").disabled = !roundsAvailable || !attendanceAvailable || !activeRound;
   document.querySelector("#cancel-game-edit").hidden = !editing;
   syncGameFormWithRound();
 }
 function renderAll() {
   renderHome();
+  renderHomeHighlights();
   renderRanking();
   renderPublicRounds();
+  renderScores();
   renderPlayers(document.querySelector("#player-search")?.value || "");
+  ensureTeamSelectors();
   renderGameFields();
   renderSavedGames();
   renderAdminPlayers();
   renderAdjustmentForm();
   renderRoundWeek();
+  renderRoundAwards();
   updateGameFormState();
 }
 function showView(id) {
@@ -453,18 +846,22 @@ function toast(message) {
 }
 
 async function loadRemoteData(showMessage = false) {
-  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult] = await Promise.all([
+  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult] = await Promise.all([
     supabaseClient.from("players").select("*").order("full_name"),
     supabaseClient.from("games").select("*").order("played_on", { ascending: false }),
     supabaseClient.from("player_game_stats").select("*"),
     supabaseClient.from("player_season_adjustments").select("*").eq("season", SEASON),
     supabaseClient.from("rounds").select("*").eq("season", SEASON).order("round_number"),
-    supabaseClient.from("round_attendance").select("*")
+    supabaseClient.from("round_attendance").select("*"),
+    supabaseClient.from("round_awards").select("*"),
+    supabaseClient.from("game_goal_events").select("*").order("event_number")
   ]);
   const error = playersResult.error || gamesResult.error || statsResult.error || adjustmentsResult.error;
   if (error) { toast(`Não foi possível carregar os dados: ${error.message}`); return; }
   roundsAvailable = !roundsResult.error;
   attendanceAvailable = !attendanceResult.error;
+  rodizioAvailable = !awardsResult.error;
+  goalEventsAvailable = !goalEventsResult.error;
   const gamesById = new Map((gamesResult.data || []).map(game => [game.id, game]));
   const gameStats = new Map((gamesResult.data || []).map(game => [game.id, []]));
   (statsResult.data || []).forEach(stat => gameStats.get(stat.game_id)?.push({
@@ -480,14 +877,16 @@ async function loadRemoteData(showMessage = false) {
   }));
   data = {
     players: (playersResult.data || []).map(player => ({ id: player.id, name: player.full_name, shirtNumber: player.shirt_number, position: player.position, photo: player.photo_url })),
-    games: (gamesResult.data || []).map(game => ({ id: game.id, roundId: game.round_id, date: game.played_on, place: game.place, home: game.home_team, away: game.away_team, homeScore: game.home_score, awayScore: game.away_score, stats: gameStats.get(game.id) || [] })),
+    games: (gamesResult.data || []).map(game => ({ id: game.id, roundId: game.round_id, number: game.game_number, date: game.played_on, place: game.place, home: game.home_team, away: game.away_team, homeScore: game.home_score, awayScore: game.away_score, resultMethod: game.result_method, winnerSide: game.winner_side, stats: gameStats.get(game.id) || [] })),
     rounds: (roundsResult.data || []).map(round => ({ id: round.id, number: round.round_number, date: round.played_on, place: round.place, status: round.status })),
     adjustments: Object.fromEntries((adjustmentsResult.data || []).map(adjustment => [adjustment.player_id, adjustment])),
     attendance: (attendanceResult.data || []).reduce((all, item) => {
       all[item.round_id] ||= {};
       all[item.round_id][item.player_id] = item.status;
       return all;
-    }, {})
+    }, {}),
+    roundAwards: (awardsResult.data || []).map(award => ({ roundId: award.round_id, playerId: award.player_id, category: award.category })),
+    goalEvents: (goalEventsResult.data || []).map(event => ({ id: event.id, gameId: event.game_id, team: String(event.team_number), scorerId: event.scorer_id, assisterId: event.assister_id, number: event.event_number }))
   };
   if (activeRoundId && !getRoundById(activeRoundId)) activeRoundId = null;
   if (!activeRoundId) {
@@ -549,13 +948,50 @@ function previewPhoto(element, player, source = player?.photo) {
 function resetGameForm() {
   editingGameId = null;
   gameDraftEntries = null;
+  gameGoalEvents = [];
+  lineupSearchText = "";
   const form = document.querySelector("#game-form");
   form.reset();
-  document.querySelector("#team-home").value = "1";
-  document.querySelector("#team-away").value = "2";
+  fillTeamSelectors("1", "2");
+  document.querySelector("#result-method").value = "regular";
+  document.querySelector("#winner-side").value = "";
   const activeRound = getActiveRound();
   document.querySelector("#game-date").value = activeRound?.date || new Date().toISOString().slice(0, 10);
   document.querySelector("#game-place").value = activeRound?.place || DEFAULT_VENUE_NAME;
+  renderGameFields();
+  updateGameFormState();
+}
+function prepareNextGameFromWinner() {
+  editingGameId = null;
+  gameGoalEvents = [];
+  lineupSearchText = "";
+  const round = getActiveRound();
+  const latest = roundGames(round?.id).slice(-1)[0];
+  const form = document.querySelector("#game-form");
+  form.reset();
+  document.querySelector("#game-date").value = round?.date || new Date().toISOString().slice(0, 10);
+  document.querySelector("#game-place").value = round?.place || DEFAULT_VENUE_NAME;
+  document.querySelector("#result-method").value = "regular";
+  document.querySelector("#winner-side").value = "";
+  if (!latest?.winnerSide) {
+    const first = getNextTeamNumber(round?.id);
+    const second = String(Math.min(TEAM_LIMIT, number(first) + 1));
+    fillTeamSelectors(first, second === first ? "1" : second);
+    gameDraftEntries = null;
+    renderGameFields();
+    updateGameFormState();
+    return;
+  }
+  const winnerTeam = gameTeamNumber(latest, latest.winnerSide);
+  const nextTeam = getNextTeamNumber(round?.id);
+  fillTeamSelectors(winnerTeam, nextTeam === winnerTeam ? String(Math.min(TEAM_LIMIT, number(winnerTeam) + 1)) : nextTeam);
+  const winnerIds = new Set(latest.stats.filter(entry => String(entry.team) === String(winnerTeam)).map(entry => entry.playerId));
+  gameDraftEntries = new Map(data.players.map(player => [player.id, {
+    attendance: winnerIds.has(player.id) ? "present" : attendanceFor(player.id),
+    team: winnerIds.has(player.id) ? winnerTeam : "",
+    goals: 0,
+    assists: 0
+  }]));
   renderGameFields();
   updateGameFormState();
 }
@@ -566,12 +1002,15 @@ function openGameEditor(gameId) {
   if (game.roundId) activeRoundId = game.roundId;
   editingGameId = game.id;
   gameDraftEntries = null;
+  gameGoalEvents = data.goalEvents.filter(event => event.gameId === game.id).map(event => ({ ...event }));
+  lineupSearchText = "";
   document.querySelector("#game-date").value = game.date;
   document.querySelector("#game-place").value = game.place || "";
-  document.querySelector("#team-home").value = gameTeamNumber(game, "home");
-  document.querySelector("#team-away").value = gameTeamNumber(game, "away");
+  fillTeamSelectors(gameTeamNumber(game, "home"), gameTeamNumber(game, "away"));
   document.querySelector("#score-home").value = game.homeScore;
   document.querySelector("#score-away").value = game.awayScore;
+  document.querySelector("#result-method").value = game.resultMethod || "regular";
+  document.querySelector("#winner-side").value = game.winnerSide || "";
   renderGameFields();
   renderRoundWeek();
   updateGameFormState();
@@ -598,6 +1037,94 @@ function openPlayerEdit(playerId) {
   document.querySelector("#player-edit-modal").hidden = false;
 }
 
+function handleGameFieldsChange(event) {
+  if (!event.target.matches(".field-attendance")) return;
+  gameDraftEntries = captureGameDraftEntries();
+  const playerId = event.target.closest(".game-player-row")?.dataset.playerId;
+  const entry = gameDraftEntries.get(playerId);
+  if (entry?.attendance !== "present") {
+    entry.team = "";
+    gameGoalEvents = gameGoalEvents.filter(goal => goal.scorerId !== playerId && goal.assisterId !== playerId);
+  }
+  renderGameFields();
+}
+function handleTeamHeaderChange() {
+  gameDraftEntries = captureGameDraftEntries();
+  refreshWinnerChoices();
+  const allowed = new Set([document.querySelector("#team-home").value, document.querySelector("#team-away").value]);
+  gameDraftEntries.forEach(entry => { if (entry.team && !allowed.has(String(entry.team))) entry.team = ""; });
+  gameGoalEvents = gameGoalEvents.filter(event => allowed.has(String(event.team)));
+  renderGameFields();
+}
+function handleLineupSummaryClick(event) {
+  const remove = event.target.closest("[data-remove-player]");
+  if (remove) {
+    gameDraftEntries = captureGameDraftEntries();
+    const playerId = remove.dataset.removePlayer;
+    const entry = gameDraftEntries.get(playerId);
+    if (entry) entry.team = "";
+    gameGoalEvents = gameGoalEvents.filter(goal => goal.scorerId !== playerId && goal.assisterId !== playerId);
+    renderGameFields();
+    return true;
+  }
+  return false;
+}
+document.querySelector("#lineup-builder").addEventListener("input", event => {
+  if (!event.target.matches("#lineup-player-search")) return;
+  lineupSearchText = event.target.value;
+  renderLineupBuilder();
+  const search = document.querySelector("#lineup-player-search");
+  search?.focus();
+  search?.setSelectionRange(lineupSearchText.length, lineupSearchText.length);
+});
+document.querySelector("#lineup-builder").addEventListener("click", event => {
+  const action = event.target.closest("[data-assign-player]");
+  if (!action) return;
+  gameDraftEntries = captureGameDraftEntries();
+  const player = data.players.find(item => item.id === action.dataset.assignPlayer);
+  const entry = gameDraftEntries.get(player?.id);
+  if (!player || !entry) return;
+  const previousTeam = entry.team;
+  entry.team = action.dataset.assignTeam;
+  if (!validateLineupAssignment(player, entry.team)) {
+    entry.team = "";
+    toast(isGoalkeeper(player) ? "Cada time pode ter apenas 1 goleiro." : "Cada time pode ter até 5 atletas de linha.");
+    renderGameFields();
+    return;
+  }
+  if (previousTeam && previousTeam !== entry.team) gameGoalEvents = gameGoalEvents.filter(goal => goal.scorerId !== player.id && goal.assisterId !== player.id);
+  renderGameFields();
+});
+document.querySelector("#goal-events").addEventListener("click", event => {
+  if (event.target.closest("#add-goal-event")) {
+    const home = document.querySelector("#team-home").value;
+    gameGoalEvents.push({ id: `draft-${++goalEventCounter}`, team: home, scorerId: "", assisterId: "" });
+    renderGoalEvents();
+    return;
+  }
+  const remove = event.target.closest(".remove-goal-event");
+  if (!remove) return;
+  const eventId = remove.closest(".goal-event-row").dataset.goalEventId;
+  gameGoalEvents = gameGoalEvents.filter(item => item.id !== eventId);
+  renderGoalEvents();
+});
+document.querySelector("#goal-events").addEventListener("change", event => {
+  if (!event.target.matches(".goal-team, .goal-scorer, .goal-assister")) return;
+  const row = event.target.closest(".goal-event-row");
+  const goal = gameGoalEvents.find(item => item.id === row.dataset.goalEventId);
+  if (!goal) return;
+  if (event.target.matches(".goal-team")) {
+    goal.team = event.target.value;
+    goal.scorerId = "";
+    goal.assisterId = "";
+  } else if (event.target.matches(".goal-scorer")) {
+    goal.scorerId = event.target.value;
+    if (goal.assisterId === goal.scorerId) goal.assisterId = "";
+  } else {
+    goal.assisterId = event.target.value;
+  }
+  renderGoalEvents();
+});
 document.querySelectorAll("[data-view-target]").forEach(button => button.addEventListener("click", () => showView(button.dataset.viewTarget)));
 document.querySelectorAll("[data-admin-access]").forEach(button => button.addEventListener("click", () => isAdmin ? showView("admin") : openLoginModal()));
 document.querySelector("#admin-access-button").addEventListener("click", () => isAdmin ? showView("admin") : openLoginModal());
@@ -699,6 +1226,27 @@ document.querySelector("#new-round-button").addEventListener("click", () => {
   document.querySelector("#round-number").focus();
 });
 document.querySelector("#game-player-fields").addEventListener("change", event => {
+  return handleGameFieldsChange(event);
+  if (event.target.matches(".field-team")) {
+    gameDraftEntries = captureGameDraftEntries();
+    const playerId = event.target.closest(".game-player-row").dataset.playerId;
+    const entry = gameDraftEntries.get(playerId);
+    const player = data.players.find(item => item.id === playerId);
+    if (entry.team) {
+      const members = [...gameDraftEntries.entries()].filter(([, item]) => String(item.team) === String(entry.team));
+      const linePlayers = members.filter(([id]) => !isGoalkeeper(data.players.find(playerItem => playerItem.id === id)));
+      const goalkeepers = members.filter(([id]) => isGoalkeeper(data.players.find(playerItem => playerItem.id === id)));
+      if ((isGoalkeeper(player) && goalkeepers.length > 1) || (!isGoalkeeper(player) && linePlayers.length > 5)) {
+        entry.team = "";
+        gameDraftEntries.set(playerId, entry);
+        toast(isGoalkeeper(player) ? "Cada time pode ter apenas 1 goleiro." : "Cada time pode ter no máximo 5 jogadores de linha.");
+        renderGameFields();
+        return;
+      }
+    }
+    renderLineupSummary(data.players.map(playerItem => ({ player: playerItem, entry: gameDraftEntries.get(playerItem.id) || {} })));
+    return;
+  }
   if (!event.target.matches(".field-attendance")) return;
   gameDraftEntries = captureGameDraftEntries();
   const entry = gameDraftEntries.get(event.target.closest(".game-player-row").dataset.playerId);
@@ -707,6 +1255,26 @@ document.querySelector("#game-player-fields").addEventListener("change", event =
     STAT_FIELDS.forEach(field => { entry[field] = 0; });
   }
   renderGameFields();
+});
+document.querySelectorAll("#team-home, #team-away").forEach(select => select.addEventListener("change", () => {
+  return handleTeamHeaderChange();
+  gameDraftEntries = captureGameDraftEntries();
+  refreshWinnerChoices();
+  const allowed = new Set([document.querySelector("#team-home").value, document.querySelector("#team-away").value]);
+  gameDraftEntries.forEach(entry => {
+    if (entry.team && !allowed.has(entry.team)) {
+      entry.team = "";
+      MATCH_STAT_FIELDS.forEach(field => { entry[field] = 0; });
+    }
+  });
+  renderGameFields();
+}));
+document.querySelector("#lineup-summary").addEventListener("click", event => {
+  if (handleLineupSummaryClick(event)) return;
+  if (!event.target.closest("#copy-winner-button")) return;
+  if (!requireAdmin()) return;
+  prepareNextGameFromWinner();
+  toast("Escalação vencedora copiada para o novo confronto.");
 });
 document.querySelector("#save-attendance-button").addEventListener("click", async () => {
   if (!requireAdmin()) return;
@@ -717,9 +1285,160 @@ document.querySelector("#save-attendance-button").addEventListener("click", asyn
   await loadRemoteData();
   toast("Lista de presença salva e publicada em Rodadas.");
 });
-document.querySelector("#game-form").addEventListener("submit", async event => {
+document.querySelector("#round-manual-awards").addEventListener("change", event => {
+  const category = event.target.dataset.awardCategory;
+  if (!category || !event.target.checked) return;
+  const checked = [...document.querySelectorAll(`[data-award-category="${category}"]:checked`)];
+  if (checked.length <= 2) return;
+  event.target.checked = false;
+  toast("Xerife e Paredão podem ter no máximo 2 atletas por rodada.");
+});
+document.querySelector("#round-awards-form").addEventListener("submit", async event => {
   event.preventDefault();
   if (!requireAdmin()) return;
+  if (!rodizioAvailable) { toast("Execute a migração 009 no Supabase para salvar os destaques."); return; }
+  const round = getActiveRound();
+  if (!round) { toast("Abra uma rodada antes de salvar seus destaques."); return; }
+  const craque = document.querySelector("#award-craque")?.value;
+  if (!craque) { toast("Escolha o único Craque da rodada."); return; }
+  const xerifes = [...document.querySelectorAll('[data-award-category="xerife"]:checked')].map(input => input.value);
+  const paredoes = [...document.querySelectorAll('[data-award-category="paredao"]:checked')].map(input => input.value);
+  if (xerifes.length > 2 || paredoes.length > 2) { toast("Xerife e Paredão permitem até 2 atletas cada."); return; }
+  const { error: deleteError } = await supabaseClient.from("round_awards").delete().eq("round_id", round.id);
+  if (deleteError) { toast(`Não foi possível atualizar os destaques: ${deleteError.message}`); return; }
+  const awards = [
+    { round_id: round.id, player_id: craque, category: "craque" },
+    ...xerifes.map(playerId => ({ round_id: round.id, player_id: playerId, category: "xerife" })),
+    ...paredoes.map(playerId => ({ round_id: round.id, player_id: playerId, category: "paredao" }))
+  ];
+  const { error } = await supabaseClient.from("round_awards").insert(awards);
+  if (error) { toast(`Não foi possível salvar os destaques: ${error.message}`); return; }
+  await loadRemoteData();
+  toast("Destaques salvos no histórico da rodada.");
+});
+async function submitRodizioGame() {
+  if (!requireAdmin()) return;
+  if (!roundsAvailable || !attendanceAvailable || !rodizioAvailable || !goalEventsAvailable) {
+    toast("Execute as migrações pendentes antes de publicar o confronto.");
+    return;
+  }
+  const activeRound = getActiveRound();
+  if (!editingGameId && !activeRound) {
+    toast("Salve a Rodada da Semana antes de adicionar confrontos.");
+    return;
+  }
+  gameDraftEntries = captureGameDraftEntries();
+  const rows = getGameDraftRows();
+  const homeTeamNumber = document.querySelector("#team-home").value;
+  const awayTeamNumber = document.querySelector("#team-away").value;
+  if (homeTeamNumber === awayTeamNumber) {
+    toast("Escolha dois times diferentes para este confronto.");
+    return;
+  }
+  const entries = rows.filter(item => item.entry.attendance === "present" && item.entry.team).map(item => ({ playerId: item.player.id, team: String(item.entry.team) }));
+  const homeEntries = entries.filter(entry => entry.team === homeTeamNumber);
+  const awayEntries = entries.filter(entry => entry.team === awayTeamNumber);
+  if (!homeEntries.length || !awayEntries.length) {
+    toast("Monte os dois times antes de concluir o confronto.");
+    return;
+  }
+  const hasInvalidLineup = [homeTeamNumber, awayTeamNumber].some(team => {
+    const players = presentLineupPlayers(team, rows);
+    return players.filter(item => isGoalkeeper(item.player)).length > 1 || players.filter(item => !isGoalkeeper(item.player)).length > 5;
+  });
+  if (hasInvalidLineup) {
+    toast("Cada time permite até 5 atletas de linha e 1 goleiro.");
+    return;
+  }
+  const selectedIdsByTeam = new Map([homeTeamNumber, awayTeamNumber].map(team => [team, new Set(presentLineupPlayers(team, rows).map(item => item.player.id))]));
+  const invalidGoal = gameGoalEvents.find(event => !event.scorerId || !selectedIdsByTeam.get(String(event.team))?.has(event.scorerId) || (event.assisterId && !selectedIdsByTeam.get(String(event.team))?.has(event.assisterId)));
+  if (invalidGoal) {
+    toast("Em cada gol, escolha o autor e uma assistência válida do mesmo time.");
+    return;
+  }
+  syncScoreFromGoalEvents();
+  const homeScore = number(document.querySelector("#score-home").value);
+  const awayScore = number(document.querySelector("#score-away").value);
+  let resultMethod = document.querySelector("#result-method").value;
+  let winnerSide = document.querySelector("#winner-side").value;
+  if (homeScore !== awayScore) {
+    winnerSide = homeScore > awayScore ? "home" : "away";
+    resultMethod = "regular";
+  } else if (!["penalties", "ficha"].includes(resultMethod) || !["home", "away"].includes(winnerSide)) {
+    toast("No empate, selecione Pênaltis ou Ficha e informe o vencedor. Isso não soma gols na artilharia.");
+    return;
+  }
+  const gamePayload = {
+    round_id: activeRound?.id || getEditingGame()?.roundId || null,
+    game_number: getEditingGame()?.number || getNextGameNumber(activeRound?.id),
+    played_on: document.querySelector("#game-date").value,
+    place: DEFAULT_VENUE_NAME,
+    home_team: teamLabel(homeTeamNumber),
+    away_team: teamLabel(awayTeamNumber),
+    home_score: homeScore,
+    away_score: awayScore,
+    result_method: resultMethod,
+    winner_side: winnerSide
+  };
+  let gameId = editingGameId;
+  if (gameId) {
+    const { error } = await supabaseClient.from("games").update(gamePayload).eq("id", gameId);
+    if (error) { toast(`Não foi possível atualizar o confronto: ${error.message}`); return; }
+    const { error: goalsDeleteError } = await supabaseClient.from("game_goal_events").delete().eq("game_id", gameId);
+    if (goalsDeleteError) { toast(`Não foi possível atualizar os gols: ${goalsDeleteError.message}`); return; }
+    const { error: statsDeleteError } = await supabaseClient.from("player_game_stats").delete().eq("game_id", gameId);
+    if (statsDeleteError) { toast(`Não foi possível atualizar as estatísticas: ${statsDeleteError.message}`); return; }
+  } else {
+    const { data: game, error } = await supabaseClient.from("games").insert(gamePayload).select().single();
+    if (error) { toast(`Não foi possível salvar o confronto: ${error.message}`); return; }
+    gameId = game.id;
+  }
+  const totals = goalEventTotals();
+  const { error: statsError } = await supabaseClient.from("player_game_stats").insert(entries.map(entry => ({
+    game_id: gameId,
+    player_id: entry.playerId,
+    team_side: entry.team === homeTeamNumber ? "home" : "away",
+    team_number: number(entry.team),
+    goals: number(totals.get(entry.playerId)?.goals),
+    assists: number(totals.get(entry.playerId)?.assists),
+    saves: 0,
+    tackles: 0,
+    is_craque: false,
+    is_xerife: false,
+    is_paredao: false
+  })));
+  if (statsError) {
+    if (!editingGameId) await supabaseClient.from("games").delete().eq("id", gameId);
+    toast(`Não foi possível salvar as estatísticas: ${statsError.message}`);
+    return;
+  }
+  if (gameGoalEvents.length) {
+    const { error: goalEventsError } = await supabaseClient.from("game_goal_events").insert(gameGoalEvents.map((event, index) => ({
+      game_id: gameId,
+      event_number: index + 1,
+      team_number: number(event.team),
+      scorer_id: event.scorerId,
+      assister_id: event.assisterId || null
+    })));
+    if (goalEventsError) {
+      toast(`Confronto salvo, mas os gols não puderam ser registrados: ${goalEventsError.message}`);
+      return;
+    }
+  }
+  const attendanceSaved = await saveRoundAttendance(new Map(rows.map(item => [item.player.id, item.entry])), { notify: false });
+  editingGameId = null;
+  gameDraftEntries = null;
+  gameGoalEvents = [];
+  await loadRemoteData();
+  resetGameForm();
+  showView("rodadas");
+  toast(attendanceSaved ? "Confronto publicado em Rodadas. Rankings e jogos da rodada foram atualizados." : "Confronto publicado, mas a presença não pôde ser atualizada.");
+}
+document.querySelector("#game-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  return submitRodizioGame();
+  if (!requireAdmin()) return;
+  if (!rodizioAvailable) { toast("Execute a migração 009 no Supabase para usar o modo Rodízio."); return; }
   if (!attendanceAvailable) { toast("Execute a migração 008 no Supabase para usar presença e os Times 1 a 10."); return; }
   if (!roundsAvailable) { toast("Execute a migração 007 no Supabase antes de lançar confrontos por rodada."); return; }
   const activeRound = getActiveRound();
@@ -729,10 +1448,7 @@ document.querySelector("#game-form").addEventListener("submit", async event => {
     attendance: row.querySelector(".field-attendance").value,
     team: row.querySelector(".field-team").value,
     goals: number(row.querySelector(".field-goals").value),
-    assists: number(row.querySelector(".field-assists").value),
-    craque: number(row.querySelector(".field-craque").value),
-    xerife: number(row.querySelector(".field-xerife").value),
-    paredao: number(row.querySelector(".field-paredao").value)
+    assists: number(row.querySelector(".field-assists").value)
   }));
   const homeTeamNumber = document.querySelector("#team-home").value;
   const awayTeamNumber = document.querySelector("#team-away").value;
@@ -743,14 +1459,32 @@ document.querySelector("#game-form").addEventListener("submit", async event => {
   if (invalidRow) { toast("Escolha o Time 1 ou o Time 2 para todo atleta com estatísticas."); return; }
   const entries = rows.filter(entry => entry.attendance === "present" && entry.team);
   if (!entries.length) { toast("Escolha o Time 1 ou o Time 2 para pelo menos um atleta."); return; }
+  const homeEntries = entries.filter(entry => entry.team === homeTeamNumber);
+  const awayEntries = entries.filter(entry => entry.team === awayTeamNumber);
+  if (!homeEntries.length || !awayEntries.length) { toast("Monte os dois lados do confronto antes de salvar."); return; }
+  const homeScore = number(document.querySelector("#score-home").value);
+  const awayScore = number(document.querySelector("#score-away").value);
+  const selectedMethod = document.querySelector("#result-method").value;
+  let winnerSide = document.querySelector("#winner-side").value;
+  let resultMethod = selectedMethod;
+  if (homeScore !== awayScore) {
+    winnerSide = homeScore > awayScore ? "home" : "away";
+    resultMethod = "regular";
+  } else if (!["penalties", "ficha"].includes(resultMethod) || !["home", "away"].includes(winnerSide)) {
+    toast("Em caso de empate, escolha Pênaltis ou Ficha e informe o time vencedor.");
+    return;
+  }
   const gamePayload = {
     round_id: activeRound?.id || getEditingGame()?.roundId || null,
+    game_number: getEditingGame()?.number || getNextGameNumber(activeRound?.id),
     played_on: document.querySelector("#game-date").value,
     place: DEFAULT_VENUE_NAME,
     home_team: teamLabel(homeTeamNumber),
     away_team: teamLabel(awayTeamNumber),
-    home_score: number(document.querySelector("#score-home").value),
-    away_score: number(document.querySelector("#score-away").value)
+    home_score: homeScore,
+    away_score: awayScore,
+    result_method: resultMethod,
+    winner_side: winnerSide
   };
   let gameId = editingGameId;
   if (gameId) {
@@ -772,9 +1506,9 @@ document.querySelector("#game-form").addEventListener("submit", async event => {
     assists: entry.assists,
     saves: 0,
     tackles: 0,
-    is_craque: entry.craque > 0,
-    is_xerife: entry.xerife > 0,
-    is_paredao: entry.paredao > 0
+    is_craque: false,
+    is_xerife: false,
+    is_paredao: false
   })));
   if (statsError) {
     if (!editingGameId) await supabaseClient.from("games").delete().eq("id", gameId);
@@ -787,11 +1521,20 @@ document.querySelector("#game-form").addEventListener("submit", async event => {
   await loadRemoteData();
   resetGameForm();
   toast(attendanceSaved ? "Confronto e lista de presença salvos. Os rankings foram atualizados." : "Confronto salvo, mas a presença não pôde ser atualizada.");
+  showView("rodadas");
 });
 document.querySelector("#new-game-button").addEventListener("click", () => {
   if (!requireAdmin()) return;
-  if (!getActiveRound()) { toast("Salve a Rodada da Semana antes de adicionar um confronto."); return; }
-  resetGameForm();
+  if (!roundsAvailable) { toast("Execute a migração 007 no Supabase para ativar as rodadas."); return; }
+  if (!attendanceAvailable) { toast("Execute a migração 008 no Supabase para ativar a presença."); return; }
+  if (!rodizioAvailable) { toast("Execute a migração 009 no Supabase para ativar o modo Rodízio."); return; }
+  if (!goalEventsAvailable) { toast("Execute a migração 010 no Supabase para registrar os gols do confronto."); return; }
+  if (!getActiveRound()) {
+    document.querySelector("#round-form").scrollIntoView({ behavior: "smooth", block: "start" });
+    toast("Salve a Rodada da Semana antes de adicionar um confronto.");
+    return;
+  }
+  prepareNextGameFromWinner();
   document.querySelector("#team-home").focus();
   toast("Novo confronto pronto para preenchimento.");
 });
