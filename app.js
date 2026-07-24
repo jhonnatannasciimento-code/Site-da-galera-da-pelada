@@ -2303,3 +2303,47 @@ document.querySelector("#game-date").value = new Date().toISOString().slice(0, 1
   await loadRemoteData();
   supabaseClient.auth.onAuthStateChange(() => { setTimeout(refreshAuthState, 0); });
 })();
+// COMPARTILHAR RODADA NO WHATSAPP - G.P.F.C
+function shareRoundOnWhatsApp() {
+  const roundNumber = document.getElementById('round-number')?.value || '?';
+  const roundDate = document.getElementById('round-date')?.value || '';
+  const games = document.querySelectorAll('#saved-games-list .saved-game-item');
+  
+  let dataFormatada = roundDate ? new Date(roundDate + 'T12:00:00').toLocaleDateString('pt-BR') : 'hoje';
+  
+  let texto = `🔥 *G.P.F.C - GALERA DA PELADA* 🔥\n`;
+  texto += `⚽ RODADA ${roundNumber} - ${dataFormatada} - CT Caxangá\n\n`;
+  texto += `*Resultados:*\n`;
+
+  if (games.length === 0) {
+    texto += `Nenhum confronto lançado ainda.\n`;
+  } else {
+    games.forEach((game, i) => {
+      // tenta pegar placar do seu HTML - se não achar, usa texto genérico
+      const placar = game.innerText.replace(/\n/g, ' ').substring(0, 100);
+      texto += `• ${placar}\n`;
+    });
+  }
+
+  texto += `\n📊 *Veja rankings completos e artilharia:*\n`;
+  texto += `https://site-da-galera-da-pelada.vercel.app/\n\n`;
+  texto += `_Desde 2016 - 10 anos de resenha_`;
+
+  const url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
+  window.open(url, '_blank');
+}
+
+// MOSTRA O BOTÃO SÓ QUANDO FINALIZA A RODADA
+const finishBtn = document.getElementById('finish-round-button');
+const shareBtn = document.getElementById('share-whatsapp-button');
+
+if (finishBtn && shareBtn) {
+  finishBtn.addEventListener('click', () => {
+    setTimeout(() => {
+      shareBtn.hidden = false;
+      shareBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 800);
+  });
+  
+  shareBtn.addEventListener('click', shareRoundOnWhatsApp);
+}
