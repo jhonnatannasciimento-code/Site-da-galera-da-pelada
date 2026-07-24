@@ -14,6 +14,7 @@ const TEAM_LIMIT = 20;
 let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [] };
 let selectedRanking = "goals";
 let selectedPositionFilter = "all";
+let expandedPublicRoundIds = new Set();
 let pendingPhotoFile = null;
 let pendingEditPhotoFile = null;
 let currentUser = null;
@@ -794,8 +795,9 @@ function renderPublicRounds() {
   }).join("") : `<div class="empty-state">As próximas rodadas finalizadas aparecerão aqui.</div>`;
 }
 function gameResultMarkup(game) {
-  if (!game.winnerSide) return "";
-  return `<small class="game-result-method">${resultLabel(game)} · ${escapeHtml(game.winnerSide === "home" ? game.home : game.away)} venceu</small>`;
+  const winnerSide = gameWinnerSide(game);
+  if (!winnerSide) return "";
+  return `<small class="game-result-method">${resultLabel(game)} · ${escapeHtml(winnerSide === "home" ? game.home : game.away)} venceu</small>`;
 }
 function savedGameMarkup(game, index) {
   const homeState = game.winnerSide === "home" ? "winner" : game.winnerSide ? "loser" : "";
@@ -808,6 +810,26 @@ function publicGameMarkup(game, index) {
   const awayState = game.winnerSide === "away" ? "winner" : game.winnerSide ? "loser" : "";
   const gameNumber = game.number || index + 1;
   return `<article class="saved-game round-saved-game public-saved-game"><div class="saved-game-top"><div class="round-game-score"><span class="round-game-number">JOGO ${String(gameNumber).padStart(2, "0")}</span><strong>${escapeHtml(game.home)} <b>${game.homeScore} × ${game.awayScore}</b> ${escapeHtml(game.away)}</strong>${gameResultMarkup(game)}</div></div><div class="saved-game-rosters"><section class="${homeState}"><span>${homeState === "winner" ? "● VENCEU · " : homeState === "loser" ? "× PERDEU · " : ""}${escapeHtml(game.home)}</span>${renderTeamRoster(game, "home")}</section><section class="${awayState}"><span>${awayState === "winner" ? "● VENCEU · " : awayState === "loser" ? "× PERDEU · " : ""}${escapeHtml(game.away)}</span>${renderTeamRoster(game, "away")}</section></div></article>`;
+}
+function gameWinnerSide(game) {
+  if (["home", "away"].includes(game.winnerSide)) return game.winnerSide;
+  if (number(game.homeScore) > number(game.awayScore)) return "home";
+  if (number(game.awayScore) > number(game.homeScore)) return "away";
+  return "";
+}
+function publicRoundTimelineMarkup(round) {
+  const games = roundGames(round.id);
+  const results = roundResults(round.id);
+  const highestWins = Math.max(0, ...results.map(item => item.wins));
+  const leaders = results.filter(item => item.wins === highestWins && highestWins > 0);
+  const leaderText = leaders.length ? leaders.map(item => item.team).join(" \u00b7 ") : "Sem vencedor definido";
+  const expanded = expandedPublicRoundIds.has(round.id);
+  const gameRows = games.length ? games.map((game, index) => {
+    const winnerSide = gameWinnerSide(game);
+    const winner = winnerSide === "home" ? game.home : winnerSide === "away" ? game.away : "Empate";
+    return `<li class="round-timeline-game"><span>JOGO ${String(game.number || index + 1).padStart(2, "0")}</span><strong>${escapeHtml(game.home)} <b>${game.homeScore} \u00d7 ${game.awayScore}</b> ${escapeHtml(game.away)}</strong><small>${winnerSide ? `Vencedor: <b>${escapeHtml(winner)}</b> \u00b7 ${escapeHtml(resultLabel(game))}` : "Empate sem decis\u00e3o registrada"}</small></li>`;
+  }).join("") : `<li class="round-timeline-empty">Nenhum confronto salvo nesta rodada.</li>`;
+  return `<article class="round-public-history-item round-timeline-item"><header class="round-timeline-heading"><div><span class="round-status ${round.status}">${roundStatusLabel(round).toUpperCase()}</span><p class="eyebrow">${roundLabel(round).toUpperCase()}</p><strong>${formatDate(round.date)}</strong><small>${escapeHtml(round.place || DEFAULT_VENUE_NAME)} \u00b7 ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</small></div><div class="round-timeline-actions"><div class="round-timeline-leader"><span>TIME COM MAIS VIT\u00d3RIAS</span><strong>${escapeHtml(leaderText)}</strong><small>${leaders.length ? `${highestWins} ${highestWins === 1 ? "vit\u00f3ria" : "vit\u00f3rias"}` : "Aguardando resultado"}</small></div><button class="button secondary round-timeline-toggle" data-toggle-round-details="${round.id}" type="button" aria-expanded="${expanded}">${expanded ? "Ocultar detalhes" : "Ver detalhes"}</button></div></header><ol class="round-timeline-games">${gameRows}</ol><div class="round-public-details"${expanded ? "" : " hidden"}><div class="round-games-list">${games.map(publicGameMarkup).join("")}</div>${roundGamesSummaryMarkup(round.id, true)}${roundHighlightsMarkup(round.id, true)}${attendanceListMarkup(round.id)}</div></article>`;
 }
 function renderPublicRounds() {
   const currentContainer = document.querySelector("#public-round-week");
@@ -827,10 +849,9 @@ function renderPublicRounds() {
   const games = roundGames(currentRound.id);
   currentContainer.innerHTML = `<div class="round-public-heading"><span class="round-status ${currentRound.status}">${roundStatusLabel(currentRound).toUpperCase()}</span><div><p class="eyebrow">${roundLabel(currentRound).toUpperCase()}</p><h2>${formatDate(currentRound.date)}</h2><p>${escapeHtml(currentRound.place || DEFAULT_VENUE_NAME)} · ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</p>${venueMapLink("Abrir CT Caxangá no GPS")}</div></div><div class="round-games-list public-round-games">${games.length ? games.map(publicGameMarkup).join("") : `<div class="saved-game-empty">Os confrontos desta rodada ainda serão definidos.</div>`}</div>${roundGamesSummaryMarkup(currentRound.id)}${roundHighlightsMarkup(currentRound.id)}${attendanceListMarkup(currentRound.id)}`;
   const historicalRounds = rounds.filter(round => round.id !== currentRound.id);
-  historyContainer.innerHTML = historicalRounds.length ? historicalRounds.map(round => {
-    const roundGamesList = roundGames(round.id);
-    return `<article class="round-public-history-item"><div><span class="mini-label">${roundLabel(round).toUpperCase()} · ${roundStatusLabel(round).toUpperCase()}</span><strong>${formatDate(round.date)}</strong><small>${escapeHtml(round.place || DEFAULT_VENUE_NAME)} · ${roundGamesList.length} ${roundGamesList.length === 1 ? "confronto" : "confrontos"}</small>${venueMapLink("Abrir no GPS")}</div><div class="round-games-list">${roundGamesList.length ? roundGamesList.map(publicGameMarkup).join("") : `<div class="saved-game-empty">Nenhum confronto salvo.</div>`}</div>${roundGamesSummaryMarkup(round.id, true)}${roundHighlightsMarkup(round.id, true)}${attendanceListMarkup(round.id)}</article>`;
-  }).join("") : `<div class="empty-state">As próximas rodadas finalizadas aparecerão aqui.</div>`;
+  historyContainer.innerHTML = historicalRounds.length
+    ? historicalRounds.map(publicRoundTimelineMarkup).join("")
+    : `<div class="empty-state">As próximas rodadas finalizadas aparecerão aqui.</div>`;
 }
 function renderSavedGames() {
   const container = document.querySelector("#saved-games-list");
@@ -1339,6 +1360,14 @@ document.querySelector("#position-filters").addEventListener("click", event => {
 document.querySelector("#athletes-grid").addEventListener("click", event => {
   const card = event.target.closest("[data-open-athlete]");
   if (card) openAthleteProfile(card.dataset.openAthlete);
+});
+document.querySelector("#public-round-history").addEventListener("click", event => {
+  const button = event.target.closest("[data-toggle-round-details]");
+  if (!button) return;
+  const roundId = button.dataset.toggleRoundDetails;
+  if (expandedPublicRoundIds.has(roundId)) expandedPublicRoundIds.delete(roundId);
+  else expandedPublicRoundIds.add(roundId);
+  renderPublicRounds();
 });
 document.querySelector("#player-photo").addEventListener("change", event => {
   const file = event.target.files[0];
