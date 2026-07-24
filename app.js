@@ -624,13 +624,14 @@ function highlightGroupMarkup(title, kicker, players, valueField = null) {
     return `<div>${avatar(player)}<p>${escapeHtml(displayName(player))}${value}</p></div>`;
   }).join("")}</div>` : `<p class="round-highlight-empty">Aguardando definição</p>`}</article>`;
 }
-function roundHighlightsMarkup(roundId, compact = false) {
+function roundHighlightsMarkup(roundId, compact = false, showTitle = true) {
   const goals = getRoundStatLeaders(roundId, "goals");
   const assists = getRoundStatLeaders(roundId, "assists");
   const craque = getRoundAwardPlayers(roundId, "craque");
   const xerife = getRoundAwardPlayers(roundId, "xerife");
   const paredao = getRoundAwardPlayers(roundId, "paredao");
-  return `<section class="round-highlights ${compact ? "compact" : ""}"><div class="round-highlights-title"><p class="eyebrow">DESTAQUES DA RODADA</p><h3>Quem se destacou</h3></div><div class="round-highlights-grid">${highlightGroupMarkup("Artilheiro", "GOLS", goals, "gols")}${highlightGroupMarkup("Garçom", "ASSISTÊNCIAS", assists, "assist.")}${highlightGroupMarkup("Craque", "ESCOLHA DA RODADA", craque)}${highlightGroupMarkup("Xerife", "DEFESA", xerife)}${highlightGroupMarkup("Paredão", "GOLEIROS", paredao)}</div></section>`;
+  const title = showTitle ? `<div class="round-highlights-title"><p class="eyebrow">DESTAQUES DA RODADA</p><h3>Quem se destacou</h3></div>` : "";
+  return `<section class="round-highlights ${compact ? "compact" : ""}">${title}<div class="round-highlights-grid">${highlightGroupMarkup("Artilheiro", "GOLS", goals, "gols")}${highlightGroupMarkup("Garçom", "ASSISTÊNCIAS", assists, "assist.")}${highlightGroupMarkup("Craque", "ESCOLHA DA RODADA", craque)}${highlightGroupMarkup("Xerife", "DEFESA", xerife)}${highlightGroupMarkup("Paredão", "GOLEIROS", paredao)}</div></section>`;
 }
 function attendanceListMarkup(roundId) {
   if (!attendanceAvailable) return "";
@@ -787,12 +788,17 @@ function renderRoundAwards() {
   submit.disabled = false;
 }
 function renderHomeHighlights() {
-  const draftRound = [...data.rounds].filter(item => item.status === "draft").sort((a, b) => b.number - a.number)[0];
-  const round = draftRound || [...data.rounds].sort((a, b) => b.number - a.number).find(item => roundGames(item.id).length);
-  if (!round) return;
-  document.querySelector("#weekly-awards").innerHTML = roundGames(round.id).length
-    ? roundHighlightsMarkup(round.id, true)
-    : `<div class="empty-state">${roundLabel(round)} está aberta. Os destaques aparecerão após os jogos.</div>`;
+  const container = document.querySelector("#weekly-awards");
+  const round = [...data.rounds]
+    .filter(item => item.status === "completed")
+    .sort((a, b) => b.number - a.number)[0];
+  if (!round) {
+    container.innerHTML = `<div class="empty-state home-highlights-empty">A primeira rodada finalizada vai aparecer aqui com seus destaques.</div>`;
+    return;
+  }
+  const games = roundGames(round.id);
+  const gameLabel = games.length === 1 ? "confronto" : "confrontos";
+  container.innerHTML = `<div class="home-highlights-meta"><span>${roundLabel(round)} \u00b7 ${formatDate(round.date)}</span><small>${games.length} ${gameLabel}</small></div>${roundHighlightsMarkup(round.id, true, false)}`;
 }
 function renderAdminPlayers() {
   const container = document.querySelector("#admin-players-list");
