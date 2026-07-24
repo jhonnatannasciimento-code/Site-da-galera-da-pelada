@@ -11,7 +11,7 @@ const STAT_FIELDS = ["goals", "assists", "craque", "xerife", "paredao"];
 const MATCH_STAT_FIELDS = ["goals", "assists"];
 const ADJUSTMENT_FIELDS = ["games", ...STAT_FIELDS];
 const TEAM_LIMIT = 20;
-let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [] };
+let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [], highlightClips: [] };
 let selectedRanking = "goals";
 let selectedPositionFilter = "all";
 let expandedPublicRoundIds = new Set();
@@ -25,6 +25,7 @@ let roundsAvailable = true;
 let attendanceAvailable = true;
 let rodizioAvailable = true;
 let goalEventsAvailable = true;
+let highlightClipsAvailable = true;
 let gameDraftEntries = null;
 let gameGoalEvents = [];
 let lineupSearchText = "";
@@ -140,6 +141,34 @@ function getRoundStatLeaders(roundId, field) {
 }
 function getRoundAwardPlayers(roundId, category) {
   return data.roundAwards.filter(item => item.roundId === roundId && item.category === category).map(item => data.players.find(player => player.id === item.playerId)).filter(Boolean);
+}
+function isInstagramUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && (url.hostname === "instagram.com" || url.hostname.endsWith(".instagram.com"));
+  } catch {
+    return false;
+  }
+}
+function clipTypeInfo(type) {
+  return {
+    gol: { label: "Gol", icon: "⚽" },
+    assistencia: { label: "Assistência", icon: "↗" },
+    defesa: { label: "Defesa", icon: "🧤" },
+    drible: { label: "Drible", icon: "✦" },
+    outro: { label: "Melhor lance", icon: "★" }
+  }[type] || { label: "Melhor lance", icon: "★" };
+}
+function roundHighlightPlayers(roundId) {
+  const players = new Map();
+  [
+    ...getRoundStatLeaders(roundId, "goals").map(item => item.player),
+    ...getRoundStatLeaders(roundId, "assists").map(item => item.player),
+    ...getRoundAwardPlayers(roundId, "craque"),
+    ...getRoundAwardPlayers(roundId, "xerife"),
+    ...getRoundAwardPlayers(roundId, "paredao")
+  ].filter(Boolean).forEach(player => players.set(player.id, player));
+  return [...players.values()].sort((a, b) => displayName(a).localeCompare(displayName(b), "pt-BR"));
 }
 function getNextRoundNumber() {
   return Math.max(LAST_HISTORICAL_ROUND, ...data.rounds.map(round => number(round.number))) + 1;
@@ -917,6 +946,56 @@ function renderHomeHighlights() {
   const gameLabel = games.length === 1 ? "confronto" : "confrontos";
   container.innerHTML = `<div class="home-highlights-meta"><span>${roundLabel(round)} \u00b7 ${formatDate(round.date)}</span><small>${games.length} ${gameLabel}</small></div>${roundHighlightsMarkup(round.id, true, false)}`;
 }
+function highlightClipsMarkup(roundId) {
+  const clips = data.highlightClips.filter(clip => clip.roundId === roundId);
+  if (!clips.length) return `<div class="empty-state highlight-clips-empty">Os Reels dos destaques aparecerão aqui depois da publicação no Instagram.</div>`;
+  return clips.map(clip => {
+    const player = data.players.find(item => item.id === clip.playerId);
+    const info = clipTypeInfo(clip.type);
+    if (!player || !isInstagramUrl(clip.instagramUrl)) return "";
+    return `<article class="highlight-clip-card"><div class="highlight-clip-player">${avatar(player)}<div><span>${info.icon} ${info.label.toUpperCase()}</span><strong>${escapeHtml(displayName(player))}</strong></div></div>${clip.caption ? `<p>${escapeHtml(clip.caption)}</p>` : ""}<a class="highlight-clip-link" href="${escapeHtml(clip.instagramUrl)}" target="_blank" rel="noopener noreferrer">Ver Reel no Instagram <span>↗</span></a></article>`;
+  }).join("");
+}
+function renderHomeClips() {
+  const container = document.querySelector("#latest-round-clips");
+  const round = getLatestCompletedRound();
+  if (!round) {
+    container.innerHTML = `<div class="empty-state highlight-clips-empty">Finalize uma rodada para publicar os melhores lances da semana.</div>`;
+    return;
+  }
+  container.innerHTML = `<div class="highlight-clips-meta"><span>${roundLabel(round)} · ${formatDate(round.date)}</span><small>VÍDEOS NO INSTAGRAM</small></div><div class="highlight-clips-grid">${highlightClipsMarkup(round.id)}</div>`;
+}
+function renderAdminHighlightClips() {
+  const select = document.querySelector("#highlight-clip-player");
+  const form = document.querySelector("#highlight-clip-form");
+  const list = document.querySelector("#highlight-clips-list");
+  const round = getActiveRound();
+  if (!highlightClipsAvailable) {
+    form.querySelectorAll("input, select, button").forEach(field => field.disabled = true);
+    select.innerHTML = `<option value="">Execute a migração 012 primeiro</option>`;
+    list.innerHTML = `<p class="adjustment-note">Execute a migração 012 no Supabase para salvar links de Reels.</p>`;
+    return;
+  }
+  form.querySelectorAll("input, select, button").forEach(field => field.disabled = !round);
+  if (!round) {
+    select.innerHTML = `<option value="">Abra uma rodada primeiro</option>`;
+    list.innerHTML = `<p class="adjustment-note">Abra a rodada da semana para cadastrar os lances dos seus destaques.</p>`;
+    return;
+  }
+  const players = roundHighlightPlayers(round.id);
+  const previousValue = select.value;
+  select.innerHTML = players.length
+    ? `<option value="">Selecione um destaque</option>${players.map(player => `<option value="${player.id}">${escapeHtml(displayName(player))} · #${shirtNumber(player)}</option>`).join("")}`
+    : `<option value="">Salve gols, assistências ou destaques primeiro</option>`;
+  select.disabled = !players.length;
+  if (players.some(player => player.id === previousValue)) select.value = previousValue;
+  const clips = data.highlightClips.filter(clip => clip.roundId === round.id);
+  list.innerHTML = clips.length ? `<div class="highlight-clips-admin-heading"><strong>Lances cadastrados em ${roundLabel(round)}</strong><small>${clips.length} ${clips.length === 1 ? "Reel" : "Reels"}</small></div>${clips.map(clip => {
+    const player = data.players.find(item => item.id === clip.playerId);
+    const info = clipTypeInfo(clip.type);
+    return `<article class="highlight-clips-admin-item"><div>${avatar(player)}<span><strong>${escapeHtml(displayName(player))}</strong><small>${info.icon} ${info.label}${clip.caption ? ` · ${escapeHtml(clip.caption)}` : ""}</small></span></div><a href="${escapeHtml(clip.instagramUrl)}" target="_blank" rel="noopener noreferrer" class="text-button">Abrir Reel ↗</a><button class="delete-highlight-clip" type="button" data-delete-highlight-clip="${clip.id}">Excluir</button></article>`;
+  }).join("")}` : `<p class="adjustment-note">Nenhum lance cadastrado nesta rodada ainda.</p>`;
+}
 function renderAdminPlayers() {
   const container = document.querySelector("#admin-players-list");
   container.innerHTML = data.players.length ? data.players.map(player =>
@@ -1016,6 +1095,7 @@ function updateGameFormState() {
 function renderAll() {
   renderHome();
   renderHomeHighlights();
+  renderHomeClips();
   renderRanking();
   renderPublicRounds();
   renderPlayers(document.querySelector("#player-search")?.value || "");
@@ -1026,6 +1106,7 @@ function renderAll() {
   renderAdjustmentForm();
   renderRoundWeek();
   renderRoundAwards();
+  renderAdminHighlightClips();
   updateGameFormState();
 }
 function showView(id) {
@@ -1043,7 +1124,7 @@ function toast(message) {
 }
 
 async function loadRemoteData(showMessage = false) {
-  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult] = await Promise.all([
+  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult] = await Promise.all([
     supabaseClient.from("players").select("*").order("full_name"),
     supabaseClient.from("games").select("*").order("played_on", { ascending: false }),
     supabaseClient.from("player_game_stats").select("*"),
@@ -1051,7 +1132,8 @@ async function loadRemoteData(showMessage = false) {
     supabaseClient.from("rounds").select("*").eq("season", SEASON).order("round_number"),
     supabaseClient.from("round_attendance").select("*"),
     supabaseClient.from("round_awards").select("*"),
-    supabaseClient.from("game_goal_events").select("*").order("event_number")
+    supabaseClient.from("game_goal_events").select("*").order("event_number"),
+    supabaseClient.from("round_highlight_clips").select("*").order("created_at", { ascending: false })
   ]);
   const error = playersResult.error || gamesResult.error || statsResult.error || adjustmentsResult.error;
   if (error) { toast(`Não foi possível carregar os dados: ${error.message}`); return; }
@@ -1059,6 +1141,7 @@ async function loadRemoteData(showMessage = false) {
   attendanceAvailable = !attendanceResult.error;
   rodizioAvailable = !awardsResult.error;
   goalEventsAvailable = !goalEventsResult.error;
+  highlightClipsAvailable = !highlightClipsResult.error;
   const gamesById = new Map((gamesResult.data || []).map(game => [game.id, game]));
   const gameStats = new Map((gamesResult.data || []).map(game => [game.id, []]));
   (statsResult.data || []).forEach(stat => gameStats.get(stat.game_id)?.push({
@@ -1083,7 +1166,8 @@ async function loadRemoteData(showMessage = false) {
       return all;
     }, {}),
     roundAwards: (awardsResult.data || []).map(award => ({ roundId: award.round_id, playerId: award.player_id, category: award.category })),
-    goalEvents: (goalEventsResult.data || []).map(event => ({ id: event.id, gameId: event.game_id, team: String(event.team_number), scorerId: event.scorer_id, assisterId: event.assister_id, number: event.event_number }))
+    goalEvents: (goalEventsResult.data || []).map(event => ({ id: event.id, gameId: event.game_id, team: String(event.team_number), scorerId: event.scorer_id, assisterId: event.assister_id, number: event.event_number })),
+    highlightClips: (highlightClipsResult.data || []).map(clip => ({ id: clip.id, roundId: clip.round_id, playerId: clip.player_id, type: clip.clip_type, instagramUrl: clip.instagram_url, caption: clip.caption, createdAt: clip.created_at }))
   };
   if (activeRoundId && !getRoundById(activeRoundId)) activeRoundId = null;
   if (!activeRoundId) {
@@ -1663,6 +1747,38 @@ document.querySelector("#round-awards-form").addEventListener("submit", async ev
   if (error) { toast(`Não foi possível salvar os destaques: ${error.message}`); return; }
   await loadRemoteData();
   toast("Destaques salvos no histórico da rodada.");
+});
+document.querySelector("#highlight-clip-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!requireAdmin()) return;
+  if (!highlightClipsAvailable) { toast("Execute a migração 012 no Supabase para ativar os lances."); return; }
+  const round = getActiveRound();
+  if (!round) { toast("Abra uma rodada antes de adicionar um lance."); return; }
+  const playerId = document.querySelector("#highlight-clip-player").value;
+  const instagramUrl = document.querySelector("#highlight-clip-url").value.trim();
+  const caption = document.querySelector("#highlight-clip-caption").value.trim();
+  if (!roundHighlightPlayers(round.id).some(player => player.id === playerId)) { toast("Escolha um atleta que foi destaque desta rodada."); return; }
+  if (!isInstagramUrl(instagramUrl)) { toast("Cole um link válido de Reel do Instagram."); return; }
+  const { error } = await supabaseClient.from("round_highlight_clips").insert({
+    round_id: round.id,
+    player_id: playerId,
+    clip_type: document.querySelector("#highlight-clip-type").value,
+    instagram_url: instagramUrl,
+    caption
+  });
+  if (error) { toast(`Não foi possível salvar o lance: ${error.message}`); return; }
+  document.querySelector("#highlight-clip-form").reset();
+  await loadRemoteData();
+  toast("Lance adicionado e publicado na página inicial.");
+});
+document.querySelector("#highlight-clips-list").addEventListener("click", async event => {
+  const button = event.target.closest("[data-delete-highlight-clip]");
+  if (!button || !requireAdmin()) return;
+  if (!confirm("Excluir este link de Reel?")) return;
+  const { error } = await supabaseClient.from("round_highlight_clips").delete().eq("id", button.dataset.deleteHighlightClip);
+  if (error) { toast(`Não foi possível excluir o lance: ${error.message}`); return; }
+  await loadRemoteData();
+  toast("Lance excluído.");
 });
 async function submitRodizioGame() {
   if (!requireAdmin()) return;
