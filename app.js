@@ -858,7 +858,7 @@ function publicRoundTimelineMarkup(round) {
     const winner = winnerSide === "home" ? game.home : winnerSide === "away" ? game.away : "Empate";
     return `<li class="round-timeline-game"><span>JOGO ${String(game.number || index + 1).padStart(2, "0")}</span><strong>${escapeHtml(game.home)} <b>${game.homeScore} \u00d7 ${game.awayScore}</b> ${escapeHtml(game.away)}</strong><small>${winnerSide ? `Vencedor: <b>${escapeHtml(winner)}</b> \u00b7 ${escapeHtml(resultLabel(game))}` : "Empate sem decis\u00e3o registrada"}</small></li>`;
   }).join("") : `<li class="round-timeline-empty">Nenhum confronto salvo nesta rodada.</li>`;
-  return `<article class="round-public-history-item round-timeline-item"><header class="round-timeline-heading"><div><span class="round-status ${round.status}">${roundStatusLabel(round).toUpperCase()}</span><p class="eyebrow">${roundLabel(round).toUpperCase()}</p><strong>${formatDate(round.date)}</strong><small>${escapeHtml(round.place || DEFAULT_VENUE_NAME)} \u00b7 ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</small></div><div class="round-timeline-actions"><div class="round-timeline-leader"><span>TIME COM MAIS VIT\u00d3RIAS</span><strong>${escapeHtml(leaderText)}</strong><small>${leaders.length ? `${highestWins} ${highestWins === 1 ? "vit\u00f3ria" : "vit\u00f3rias"}` : "Aguardando resultado"}</small></div><button class="button secondary round-timeline-toggle" data-toggle-round-details="${round.id}" type="button" aria-expanded="${expanded}">${expanded ? "Ocultar detalhes" : "Ver detalhes"}</button></div></header><ol class="round-timeline-games">${gameRows}</ol><div class="round-public-details"${expanded ? "" : " hidden"}><div class="round-games-list">${games.map(publicGameMarkup).join("")}</div>${roundGamesSummaryMarkup(round.id, true)}${roundHighlightsMarkup(round.id, true)}${attendanceListMarkup(round.id)}</div></article>`;
+  return `<article class="round-public-history-item round-timeline-item"><header class="round-timeline-heading"><div><span class="round-status ${round.status}">${roundStatusLabel(round).toUpperCase()}</span><p class="eyebrow">${roundLabel(round).toUpperCase()}</p><strong>${formatDate(round.date)}</strong><small>${escapeHtml(round.place || DEFAULT_VENUE_NAME)} \u00b7 ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</small></div><div class="round-timeline-actions"><div class="round-timeline-leader"><span>TIME COM MAIS VIT\u00d3RIAS</span><strong>${escapeHtml(leaderText)}</strong><small>${leaders.length ? `${highestWins} ${highestWins === 1 ? "vit\u00f3ria" : "vit\u00f3rias"}` : "Aguardando resultado"}</small></div><button class="button secondary round-timeline-toggle" data-toggle-round-details="${round.id}" type="button" aria-expanded="${expanded}">${expanded ? "Ocultar detalhes" : "Ver detalhes"}</button></div></header><ol class="round-timeline-games">${gameRows}</ol><div class="round-public-details"${expanded ? "" : " hidden"}><div class="round-games-list">${games.map(publicGameMarkup).join("")}</div>${roundGamesSummaryMarkup(round.id, true)}${roundHighlightsMarkup(round.id, true)}${roundClipsSectionMarkup(round.id)}${attendanceListMarkup(round.id)}</div></article>`;
 }
 function renderPublicRounds() {
   const currentContainer = document.querySelector("#public-round-week");
@@ -876,7 +876,7 @@ function renderPublicRounds() {
     return;
   }
   const games = roundGames(currentRound.id);
-  currentContainer.innerHTML = `<div class="round-public-heading"><span class="round-status ${currentRound.status}">${roundStatusLabel(currentRound).toUpperCase()}</span><div><p class="eyebrow">${roundLabel(currentRound).toUpperCase()}</p><h2>${formatDate(currentRound.date)}</h2><p>${escapeHtml(currentRound.place || DEFAULT_VENUE_NAME)} · ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</p>${venueMapLink("Abrir CT Caxangá no GPS")}</div></div><div class="round-games-list public-round-games">${games.length ? games.map(publicGameMarkup).join("") : `<div class="saved-game-empty">Os confrontos desta rodada ainda serão definidos.</div>`}</div>${roundGamesSummaryMarkup(currentRound.id)}${roundHighlightsMarkup(currentRound.id)}${attendanceListMarkup(currentRound.id)}`;
+  currentContainer.innerHTML = `<div class="round-public-heading"><span class="round-status ${currentRound.status}">${roundStatusLabel(currentRound).toUpperCase()}</span><div><p class="eyebrow">${roundLabel(currentRound).toUpperCase()}</p><h2>${formatDate(currentRound.date)}</h2><p>${escapeHtml(currentRound.place || DEFAULT_VENUE_NAME)} · ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</p>${venueMapLink("Abrir CT Caxangá no GPS")}</div></div><div class="round-games-list public-round-games">${games.length ? games.map(publicGameMarkup).join("") : `<div class="saved-game-empty">Os confrontos desta rodada ainda serão definidos.</div>`}</div>${roundGamesSummaryMarkup(currentRound.id)}${roundHighlightsMarkup(currentRound.id)}${roundClipsSectionMarkup(currentRound.id)}${attendanceListMarkup(currentRound.id)}`;
   const historicalRounds = rounds.filter(round => round.id !== currentRound.id);
   historyContainer.innerHTML = historicalRounds.length
     ? historicalRounds.map(publicRoundTimelineMarkup).join("")
@@ -946,15 +946,19 @@ function renderHomeHighlights() {
   const gameLabel = games.length === 1 ? "confronto" : "confrontos";
   container.innerHTML = `<div class="home-highlights-meta"><span>${roundLabel(round)} \u00b7 ${formatDate(round.date)}</span><small>${games.length} ${gameLabel}</small></div>${roundHighlightsMarkup(round.id, true, false)}`;
 }
-function highlightClipsMarkup(roundId) {
+function highlightClipsMarkup(roundId, { showEmpty = true } = {}) {
   const clips = data.highlightClips.filter(clip => clip.roundId === roundId);
-  if (!clips.length) return `<div class="empty-state highlight-clips-empty">Os Reels dos destaques aparecerão aqui depois da publicação no Instagram.</div>`;
+  if (!clips.length) return showEmpty ? `<div class="empty-state highlight-clips-empty">Os Reels dos destaques aparecerão aqui depois da publicação no Instagram.</div>` : "";
   return clips.map(clip => {
     const player = data.players.find(item => item.id === clip.playerId);
     const info = clipTypeInfo(clip.type);
     if (!player || !isInstagramUrl(clip.instagramUrl)) return "";
     return `<article class="highlight-clip-card"><div class="highlight-clip-player">${avatar(player)}<div><span>${info.icon} ${info.label.toUpperCase()}</span><strong>${escapeHtml(displayName(player))}</strong></div></div>${clip.caption ? `<p>${escapeHtml(clip.caption)}</p>` : ""}<a class="highlight-clip-link" href="${escapeHtml(clip.instagramUrl)}" target="_blank" rel="noopener noreferrer">Ver Reel no Instagram <span>↗</span></a></article>`;
   }).join("");
+}
+function roundClipsSectionMarkup(roundId) {
+  const clips = data.highlightClips.filter(clip => clip.roundId === roundId);
+  return `<section class="round-highlight-clips"><div class="round-clips-section-heading"><div><p class="eyebrow">MELHORES MOMENTOS</p><h3>Lances da rodada</h3></div><span class="mini-label">${clips.length} ${clips.length === 1 ? "REEL" : "REELS"}</span></div><div class="highlight-clips-grid">${highlightClipsMarkup(roundId)}</div></section>`;
 }
 function renderHomeClips() {
   const container = document.querySelector("#latest-round-clips");
