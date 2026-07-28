@@ -2347,3 +2347,23 @@ if (finishBtn && shareBtn) {
   
   shareBtn.addEventListener('click', shareRoundOnWhatsApp);
 }
+
+const mobileMenuToggle = document.querySelector("#menu-toggle");
+const mobileMainNav = document.querySelector("#main-nav");
+
+function setMobileMenu(isOpen) {
+  if (!mobileMenuToggle || !mobileMainNav) return;
+  mobileMainNav.classList.toggle("is-open", isOpen);
+  mobileMenuToggle.setAttribute("aria-expanded", String(isOpen));
+  mobileMenuToggle.setAttribute("aria-label", isOpen ? "Fechar menu" : "Abrir menu");
+  mobileMenuToggle.textContent = isOpen ? "×" : "☰";
+  document.body.style.overflow = isOpen ? "hidden" : "";
+}
+
+mobileMenuToggle?.addEventListener("click", () => {
+  setMobileMenu(!mobileMainNav.classList.contains("is-open"));
+});
+
+mobileMainNav?.addEventListener("click", event => {
+  if (event.target.closest("button")) setMobileMenu(false);
+});
