@@ -4337,6 +4337,10 @@ footer {
   .topbar {
     position: relative;
     z-index: 1000;
+    /* O backdrop-filter cria um novo contexto para elementos fixed.
+       Sem ele, o painel do menu ocupa corretamente toda a tela. */
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
   .mobile-menu-toggle {
     position: relative;
