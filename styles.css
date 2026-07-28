@@ -4390,6 +4390,10 @@ footer {
     font-size: 22px !important;
     text-align: center;
   }
+  /* No layout antigo o quarto item era ocultado; no menu hambúrguer ele deve aparecer. */
+  .main-nav .nav-link:nth-child(4) {
+    display: block !important;
+  }
   .main-nav .nav-link.active {
     border-color: rgba(96, 213, 255, 0.8);
     color: #fff;
