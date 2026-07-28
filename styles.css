@@ -4340,7 +4340,7 @@ footer {
   }
   .mobile-menu-toggle {
     position: relative;
-    z-index: 1002;
+    z-index: 10000;
     display: grid;
     width: 42px;
     height: 42px;
@@ -4355,7 +4355,7 @@ footer {
   }
   .main-nav {
     position: fixed;
-    z-index: 1001;
+    z-index: 9999;
     inset: 0;
     display: flex !important;
     flex-direction: column;
@@ -4363,7 +4363,8 @@ footer {
     justify-content: center;
     gap: 26px !important;
     padding: 94px 24px 40px;
-    background: #020918;
+    /* Fundo sólido: impede que o conteúdo da página apareça pelo menu. */
+    background-color: #020918 !important;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
@@ -4374,10 +4375,11 @@ footer {
       visibility 0.22s;
   }
   .main-nav.is-open {
-    opacity: 1;
+    opacity: 1 !important;
     visibility: visible;
     pointer-events: auto;
     transform: translateX(0);
+    background-color: #020918 !important;
   }
   .main-nav .nav-link {
     display: block !important;
