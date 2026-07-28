@@ -4336,9 +4336,11 @@ footer {
 @media (max-width: 850px) {
   .topbar {
     position: relative;
-    z-index: 20;
+    z-index: 1000;
   }
   .mobile-menu-toggle {
+    position: relative;
+    z-index: 1002;
     display: grid;
     width: 42px;
     height: 42px;
@@ -4353,7 +4355,7 @@ footer {
   }
   .main-nav {
     position: fixed;
-    z-index: 19;
+    z-index: 1001;
     inset: 0;
     display: flex !important;
     flex-direction: column;
@@ -4361,7 +4363,7 @@ footer {
     justify-content: center;
     gap: 26px !important;
     padding: 94px 24px 40px;
-    background: rgba(2, 9, 24, 0.98);
+    background: #020918;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;

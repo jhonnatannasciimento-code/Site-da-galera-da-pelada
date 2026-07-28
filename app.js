@@ -2356,7 +2356,7 @@ function setMobileMenu(isOpen) {
   mobileMainNav.classList.toggle("is-open", isOpen);
   mobileMenuToggle.setAttribute("aria-expanded", String(isOpen));
   mobileMenuToggle.setAttribute("aria-label", isOpen ? "Fechar menu" : "Abrir menu");
-  mobileMenuToggle.textContent = isOpen ? "×" : "☰";
+  mobileMenuToggle.textContent = isOpen ? "\u00D7" : "\u2630";
   document.body.style.overflow = isOpen ? "hidden" : "";
 }
 
