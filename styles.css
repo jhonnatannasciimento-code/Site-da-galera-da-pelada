@@ -2120,6 +2120,11 @@ footer {
   justify-content: flex-end;
   gap: 9px;
 }
+.game-final-actions {
+  margin-top: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
 .button.secondary {
   border: 1px solid var(--line);
   color: #c8ddf3;
