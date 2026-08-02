@@ -360,11 +360,20 @@
       <p><span>G.P.F.C — GALERA DA PELADA</span> <i aria-hidden="true"></i> CAMARAGIBE — PE <small>• Desde 2016</small></p>
       <a href="https://www.instagram.com/galeradapelada2016/" target="_blank" rel="noopener noreferrer">@galeradapelada2016</a>
     </footer>
-    <script>
-      window.__ENV__ = window.__ENV__ || {};
-    </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
     <script src="config.js"></script>
-    <script src="app.js"></script>
+    <script>
+      window.supabaseConfigReady
+        .then(() => {
+          const appScript = document.createElement("script");
+          appScript.src = "app.js";
+          document.body.append(appScript);
+        })
+        .catch((error) => {
+          console.error(error);
+          document.body.insertAdjacentHTML("afterbegin", "<p style=\"margin:0;padding:12px 18px;background:#7f1d1d;color:#fff;font:600 14px sans-serif;text-align:center\">N\u00e3o foi poss\u00edvel conectar ao banco de dados. Verifique as vari\u00e1veis da Vercel.</p>");
+        });
+    </script>
   </body>
 </html>
