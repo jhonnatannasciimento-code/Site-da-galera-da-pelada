@@ -211,7 +211,7 @@ function getGameTotals(playerId) {
   return totals;
 }
 function getRecordedGameCount(playerId) {
-  return data.games.filter(isCompletedGame).reduce((total, game) => total + (game.stats.some(entry => entry.playerId === playerId) ? 1 : 0), 0);
+  return getAttendanceHistory(playerId).present;
 }
 function getStats(excludeRoundId = null) {
   const totals = Object.fromEntries(data.players.map(player => [player.id, {
@@ -230,7 +230,6 @@ function getStats(excludeRoundId = null) {
     game.stats.forEach(entry => {
     const total = totals[entry.playerId];
     if (!total) return;
-    total.games += 1;
     total.goals += number(entry.goals);
     total.assists += number(entry.assists);
     total.saves += number(entry.saves);
@@ -238,6 +237,12 @@ function getStats(excludeRoundId = null) {
     total.craque += number(entry.craque);
     total.xerife += number(entry.xerife);
     total.paredao += number(entry.paredao);
+    });
+  });
+  Object.entries(data.attendance).forEach(([roundId, statuses]) => {
+    if (excludeRoundId && String(roundId) === String(excludeRoundId)) return;
+    Object.entries(statuses).forEach(([playerId, status]) => {
+      if (status === "present" && totals[playerId]) totals[playerId].games += 1;
     });
   });
   data.roundAwards.forEach(award => {
