@@ -215,7 +215,7 @@
             <form id="player-form" class="form-stack">
               <div class="photo-upload">
                 <div id="photo-preview" class="photo-preview">+</div>
-                <label class="upload-control" data-tooltip="Envie JPG, PNG ou WEBP de até 2,5 MB.">Escolher foto<input id="player-photo" type="file" accept="image/jpeg,image/png,image/webp" /></label>
+                <div class="player-photo-control"><label class="upload-control" data-tooltip="Envie JPG, JPEG, PNG ou WebP de até 5 MB.">Escolher foto<input id="player-photo" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" /></label><p class="photo-format-help">JPG, JPEG, PNG ou WebP · máximo 5 MB.</p></div>
               </div>
               <label>Nome <input id="player-name" required maxlength="42" placeholder="Ex.: Edilson" /></label>
               <div class="form-row"><label>Número da camisa<input id="player-shirt-number" required type="number" min="0" max="99" inputmode="numeric" placeholder="Ex.: 10" /></label><label>Posição<select id="player-position"><option>Atacante</option><option>Meia</option><option>Zagueiro</option><option>Goleiro</option><option>Versátil</option></select></label></div>
@@ -313,14 +313,30 @@
         <p class="eyebrow">GERENCIAR ATLETA</p>
         <h2 id="player-edit-title">Editar atleta</h2>
         <p>Você pode corrigir os dados e definir o total desejado para a temporada 2026.</p>
-        <form id="player-edit-form" class="form-stack">
+        <form id="player-edit-form" class="form-stack player-edit-form">
           <input id="edit-player-id" type="hidden" />
-          <div class="photo-upload"><div id="edit-photo-preview" class="photo-preview">+</div><label class="upload-control" data-tooltip="Envie JPG, PNG ou WEBP de até 2,5 MB.">Trocar foto<input id="edit-player-photo" type="file" accept="image/jpeg,image/png,image/webp" /></label></div>
-          <label>Nome<input id="edit-player-name" required maxlength="42" /></label>
-          <div class="form-row"><label>Número da camisa<input id="edit-player-shirt-number" required type="number" min="0" max="99" inputmode="numeric" /></label><label>Posição<select id="edit-player-position"><option>Atacante</option><option>Meia</option><option>Zagueiro</option><option>Goleiro</option><option>Versátil</option></select></label></div>
-          <div><strong class="form-subtitle">Estatísticas da temporada</strong><p class="form-help">As rodadas já registradas continuam preservadas.</p></div>
-          <div class="adjustment-fields edit-stats-fields"><label>Jogos<input id="edit-player-games" type="number" min="0" value="0" inputmode="numeric" /></label><label>Gols<input id="edit-player-goals" type="number" min="0" value="0" inputmode="numeric" /></label><label>Assistências<input id="edit-player-assists" type="number" min="0" value="0" inputmode="numeric" /></label><label>Craque<input id="edit-player-craque" type="number" min="0" value="0" inputmode="numeric" /></label><label>Xerife<input id="edit-player-xerife" type="number" min="0" value="0" inputmode="numeric" /></label><label>Paredão<input id="edit-player-paredao" type="number" min="0" value="0" inputmode="numeric" /></label></div>
-          <button class="button primary" type="submit">Salvar alterações <span>→</span></button>
+          <section class="player-edit-section player-edit-identity" aria-labelledby="edit-player-data-title">
+            <div class="player-edit-section-heading"><strong id="edit-player-data-title" class="form-subtitle">Dados do atleta</strong><small>Nome, camisa e posição</small></div>
+            <label class="player-edit-name">Nome<input id="edit-player-name" required maxlength="42" /></label>
+            <div class="form-row"><label>Número da camisa<input id="edit-player-shirt-number" required type="number" min="0" max="99" inputmode="numeric" /></label><label>Posição<select id="edit-player-position"><option>Atacante</option><option>Meia</option><option>Zagueiro</option><option>Goleiro</option><option>Versátil</option></select></label></div>
+          </section>
+          <section class="player-edit-section player-edit-photo-section" aria-labelledby="edit-player-photo-title">
+            <div class="player-edit-section-heading"><strong id="edit-player-photo-title" class="form-subtitle">Foto do atleta</strong><small>Opcional</small></div>
+            <div class="photo-upload"><div id="edit-photo-preview" class="photo-preview">+</div><div class="player-photo-control"><label class="upload-control" data-tooltip="Envie JPG, JPEG, PNG ou WebP de até 5 MB.">Trocar foto<input id="edit-player-photo" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" /></label><p class="photo-format-help">JPG, JPEG, PNG ou WebP · máximo 5 MB.</p></div></div>
+            <div id="player-cropper" class="director-cropper player-cropper" hidden>
+              <div id="player-crop-area" class="director-crop-area player-crop-area" aria-label="Arraste a foto para ajustar o enquadramento">
+                <img id="player-crop-image" alt="Ajuste da foto do atleta" draggable="false" />
+                <span class="director-crop-ring" aria-hidden="true"></span>
+              </div>
+              <label class="director-zoom-label">Aproximar ou afastar a foto<input id="player-crop-zoom" type="range" min="1" max="3" value="1" step="0.01" /></label>
+              <p>Arraste a foto dentro do círculo para centralizar o rosto. Ao salvar, somente este recorte será enviado.</p>
+            </div>
+          </section>
+          <section class="player-edit-section player-edit-stats-section" aria-labelledby="edit-player-stats-title">
+            <div class="player-edit-section-heading"><div><strong id="edit-player-stats-title" class="form-subtitle">Estatísticas da temporada</strong><p class="form-help">As rodadas já registradas continuam preservadas.</p></div><small>Totais de 2026</small></div>
+            <div class="adjustment-fields edit-stats-fields"><label>Jogos<input id="edit-player-games" type="number" min="0" value="0" inputmode="numeric" /></label><label>Gols<input id="edit-player-goals" type="number" min="0" value="0" inputmode="numeric" /></label><label>Assistências<input id="edit-player-assists" type="number" min="0" value="0" inputmode="numeric" /></label><label>Craque<input id="edit-player-craque" type="number" min="0" value="0" inputmode="numeric" /></label><label>Xerife<input id="edit-player-xerife" type="number" min="0" value="0" inputmode="numeric" /></label><label>Paredão<input id="edit-player-paredao" type="number" min="0" value="0" inputmode="numeric" /></label></div>
+          </section>
+          <div class="player-edit-actions"><button class="button secondary" type="button" data-close-player-edit>Cancelar</button><button class="button primary" type="submit">Salvar alterações <span>→</span></button></div>
         </form>
       </section>
     </div>
