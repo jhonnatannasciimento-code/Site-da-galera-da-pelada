@@ -17,6 +17,8 @@ const MEDIA_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const HALL_PHOTO_BUCKET = "hall-of-fame";
 const HALL_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const DIRECTOR_CROP_SIZE = 220;
+const ROUND_SHARE_WIDTH = 1080;
+const ROUND_SHARE_HEIGHT = 1350;
 const DEFAULT_DIRECTORS = [
   { id: "anderson", slot: 1, name: "Anderson", role: "Diretor Geral", instagramUrl: "https://www.instagram.com/anderson_r_andrade/", photo: null },
   { id: "almir", slot: 2, name: "Almir", role: "Diretor Auxiliar", instagramUrl: "https://www.instagram.com/almir.claudino/", photo: null },
@@ -63,6 +65,9 @@ const PUBLIC_ATTENDANCE_PLAYER_KEY = "gpfc-public-attendance-player";
 let publicAttendancePlayerId = localStorage.getItem(PUBLIC_ATTENDANCE_PLAYER_KEY) || "";
 let publicAttendanceChoice = "";
 let publicAttendanceRoundId = "";
+let sharedRoundId = "";
+let sharedRoundBlob = null;
+let sharedRoundObjectUrl = "";
 
 function number(value) { return Number(value || 0); }
 function initials(player) {
@@ -921,6 +926,256 @@ function roundResults(roundId) {
   });
   return [...totals.values()].sort((a, b) => b.wins - a.wins || a.losses - b.losses || b.goalsFor - a.goalsFor || a.team.localeCompare(b.team));
 }
+function shareRoundFilename(round) {
+  return `gpfc-rodada-${round.number}-${String(round.date || SEASON)}.png`;
+}
+function loadCanvasImage(source) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = source;
+  });
+}
+function canvasRoundRect(context, x, y, width, height, radius = 24) {
+  const safeRadius = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(x + safeRadius, y);
+  context.arcTo(x + width, y, x + width, y + height, safeRadius);
+  context.arcTo(x + width, y + height, x, y + height, safeRadius);
+  context.arcTo(x, y + height, x, y, safeRadius);
+  context.arcTo(x, y, x + width, y, safeRadius);
+  context.closePath();
+}
+function canvasFitText(context, value, maxWidth) {
+  const text = String(value || "");
+  if (context.measureText(text).width <= maxWidth) return text;
+  let fitted = text;
+  while (fitted.length && context.measureText(`${fitted}…`).width > maxWidth) fitted = fitted.slice(0, -1);
+  return `${fitted.trim()}…`;
+}
+function shareHighlightNames(items) {
+  const names = items.filter(Boolean).map(item => displayName(item.player || item));
+  return names.length ? names.join(" · ") : "Aguardando definição";
+}
+async function createRoundShareImage(roundId) {
+  const round = getRoundById(roundId);
+  if (!round) throw new Error("Rodada não encontrada.");
+  const games = roundGames(round.id).filter(isCompletedGame);
+  const canvas = document.createElement("canvas");
+  canvas.width = ROUND_SHARE_WIDTH;
+  canvas.height = ROUND_SHARE_HEIGHT;
+  const context = canvas.getContext("2d");
+
+  const background = context.createLinearGradient(0, 0, ROUND_SHARE_WIDTH, ROUND_SHARE_HEIGHT);
+  background.addColorStop(0, "#020713");
+  background.addColorStop(0.55, "#061a3a");
+  background.addColorStop(1, "#082f67");
+  context.fillStyle = background;
+  context.fillRect(0, 0, ROUND_SHARE_WIDTH, ROUND_SHARE_HEIGHT);
+
+  const glow = context.createRadialGradient(870, 230, 20, 870, 230, 520);
+  glow.addColorStop(0, "rgba(36, 184, 255, .42)");
+  glow.addColorStop(1, "rgba(36, 184, 255, 0)");
+  context.fillStyle = glow;
+  context.fillRect(0, 0, ROUND_SHARE_WIDTH, 760);
+
+  try {
+    const shield = await loadCanvasImage("assets/escudo-moderno-gpfc.webp");
+    context.save();
+    context.globalAlpha = 0.12;
+    context.drawImage(shield, 535, -55, 640, 640);
+    context.restore();
+    context.drawImage(shield, 66, 54, 116, 116);
+  } catch (error) {
+    console.warn("Não foi possível adicionar o escudo à arte.", error);
+  }
+
+  context.fillStyle = "#f4f8ff";
+  context.font = "800 38px 'Barlow Condensed', sans-serif";
+  context.fillText("G.P.F.C", 210, 94);
+  context.fillStyle = "#55d8ff";
+  context.font = "700 19px 'DM Sans', sans-serif";
+  context.fillText("GALERA DA PELADA · DESDE 2016", 210, 130);
+
+  context.textAlign = "right";
+  context.fillStyle = "#75dcff";
+  context.font = "700 22px 'DM Sans', sans-serif";
+  context.fillText(`TEMPORADA ${SEASON}`, 1010, 83);
+  context.fillStyle = "#ffffff";
+  context.font = "800 72px 'Barlow Condensed', sans-serif";
+  context.fillText(`RODADA ${round.number}`, 1010, 145);
+  context.textAlign = "left";
+
+  context.strokeStyle = "rgba(83, 209, 255, .48)";
+  context.lineWidth = 2;
+  context.beginPath();
+  context.moveTo(66, 194);
+  context.lineTo(1014, 194);
+  context.stroke();
+
+  context.fillStyle = "#c4d4e9";
+  context.font = "600 23px 'DM Sans', sans-serif";
+  context.fillText(`${formatDate(round.date)}  ·  ${round.place || DEFAULT_VENUE_NAME}`, 66, 232);
+  context.fillStyle = "#4fd7ff";
+  context.font = "800 25px 'Barlow Condensed', sans-serif";
+  context.fillText("PLACARES DA RODADA", 66, 288);
+
+  const visibleGames = games.slice(0, 10);
+  const gameStartY = 315;
+  const gameRowHeight = 53;
+  visibleGames.forEach((game, index) => {
+    const y = gameStartY + index * gameRowHeight;
+    context.fillStyle = index % 2 ? "rgba(4, 31, 67, .9)" : "rgba(7, 43, 88, .82)";
+    canvasRoundRect(context, 66, y, 948, 43, 9);
+    context.fill();
+    context.fillStyle = "#52d8ff";
+    context.font = "700 16px 'DM Sans', sans-serif";
+    context.fillText(String(game.number || index + 1).padStart(2, "0"), 83, y + 28);
+    context.fillStyle = "#edf6ff";
+    context.font = "700 22px 'DM Sans', sans-serif";
+    context.textAlign = "right";
+    context.fillText(canvasFitText(context, game.home, 300), 454, y + 29);
+    context.textAlign = "center";
+    context.fillStyle = "#5edcff";
+    context.font = "800 28px 'Barlow Condensed', sans-serif";
+    context.fillText(`${number(game.homeScore)}  ×  ${number(game.awayScore)}`, 540, y + 30);
+    context.textAlign = "left";
+    context.fillStyle = "#edf6ff";
+    context.font = "700 22px 'DM Sans', sans-serif";
+    context.fillText(canvasFitText(context, game.away, 300), 626, y + 29);
+    context.fillStyle = "#8ba4c5";
+    context.font = "600 14px 'DM Sans', sans-serif";
+    context.textAlign = "right";
+    context.fillText(resultLabel(game), 995, y + 27);
+    context.textAlign = "left";
+  });
+  if (!visibleGames.length) {
+    context.fillStyle = "#91a9c8";
+    context.font = "600 24px 'DM Sans', sans-serif";
+    context.fillText("Nenhum confronto finalizado nesta rodada.", 66, 350);
+  } else if (games.length > visibleGames.length) {
+    context.fillStyle = "#91a9c8";
+    context.font = "600 17px 'DM Sans', sans-serif";
+    context.fillText(`+ ${games.length - visibleGames.length} confrontos no site`, 66, gameStartY + visibleGames.length * gameRowHeight + 4);
+  }
+
+  const results = roundResults(round.id);
+  const highestWins = Math.max(0, ...results.map(item => item.wins));
+  const leaders = results.filter(item => item.wins === highestWins && highestWins > 0);
+  const resultBottom = visibleGames.length ? gameStartY + visibleGames.length * gameRowHeight : 380;
+  const leaderY = Math.min(875, resultBottom + 28);
+  context.fillStyle = "rgba(24, 143, 229, .2)";
+  canvasRoundRect(context, 66, leaderY, 948, 82, 14);
+  context.fill();
+  context.fillStyle = "#77ddff";
+  context.font = "700 17px 'DM Sans', sans-serif";
+  context.fillText("TIME COM MAIS VITÓRIAS", 88, leaderY + 29);
+  context.fillStyle = "#ffffff";
+  context.font = "800 31px 'Barlow Condensed', sans-serif";
+  context.fillText(canvasFitText(context, leaders.length ? leaders.map(item => item.team).join(" · ") : "Aguardando resultados", 560), 88, leaderY + 62);
+  context.textAlign = "right";
+  context.fillStyle = "#55d8ff";
+  context.font = "800 30px 'Barlow Condensed', sans-serif";
+  context.fillText(leaders.length ? `${highestWins} ${highestWins === 1 ? "VITÓRIA" : "VITÓRIAS"}` : "—", 990, leaderY + 52);
+  context.textAlign = "left";
+
+  const highlights = [
+    ["ARTILHEIRO", shareHighlightNames(getRoundStatLeaders(round.id, "goals"))],
+    ["GARÇOM", shareHighlightNames(getRoundStatLeaders(round.id, "assists"))],
+    ["CRAQUE", shareHighlightNames(getRoundAwardPlayers(round.id, "craque"))],
+    ["XERIFE", shareHighlightNames(getRoundAwardPlayers(round.id, "xerife"))],
+    ["PAREDÃO", shareHighlightNames(getRoundAwardPlayers(round.id, "paredao"))]
+  ];
+  const highlightStartY = leaderY + 126;
+  context.fillStyle = "#4fd7ff";
+  context.font = "800 25px 'Barlow Condensed', sans-serif";
+  context.fillText("DESTAQUES DA SEMANA", 66, highlightStartY);
+  highlights.forEach(([label, names], index) => {
+    const column = index % 2;
+    const row = Math.floor(index / 2);
+    const x = 66 + column * 482;
+    const y = highlightStartY + 25 + row * 82;
+    const width = index === highlights.length - 1 ? 948 : 466;
+    context.fillStyle = "rgba(2, 18, 43, .76)";
+    canvasRoundRect(context, x, y, width, 68, 12);
+    context.fill();
+    context.fillStyle = "#6bdcff";
+    context.font = "700 15px 'DM Sans', sans-serif";
+    context.fillText(label, x + 18, y + 24);
+    context.fillStyle = names === "Aguardando definição" ? "#8095b2" : "#f5f9ff";
+    context.font = "700 20px 'DM Sans', sans-serif";
+    context.fillText(canvasFitText(context, names, width - 36), x + 18, y + 51);
+  });
+
+  context.fillStyle = "#5fdcff";
+  context.font = "700 18px 'DM Sans', sans-serif";
+  context.fillText("@galeradapelada2016", 66, 1310);
+  context.textAlign = "right";
+  context.fillStyle = "#91a9c8";
+  context.fillText("FUTEBOL · AMIZADE · RESENHA", 1014, 1310);
+  context.textAlign = "left";
+
+  return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("Não foi possível gerar a imagem.")), "image/png", 0.96));
+}
+function closeShareRoundModal() {
+  document.querySelector("#share-round-modal").hidden = true;
+  if (sharedRoundObjectUrl) URL.revokeObjectURL(sharedRoundObjectUrl);
+  sharedRoundObjectUrl = "";
+  sharedRoundBlob = null;
+  sharedRoundId = "";
+}
+async function openShareRoundModal(roundId) {
+  const round = getRoundById(roundId);
+  if (!round) return;
+  const modal = document.querySelector("#share-round-modal");
+  const preview = document.querySelector("#share-round-preview");
+  const downloadButton = document.querySelector("#download-round-image");
+  const shareButton = document.querySelector("#share-round-image");
+  sharedRoundId = roundId;
+  sharedRoundBlob = null;
+  preview.innerHTML = `<span>Gerando imagem da ${escapeHtml(roundLabel(round))}...</span>`;
+  downloadButton.disabled = true;
+  shareButton.disabled = true;
+  modal.hidden = false;
+  try {
+    await document.fonts?.ready;
+    sharedRoundBlob = await createRoundShareImage(roundId);
+    sharedRoundObjectUrl = URL.createObjectURL(sharedRoundBlob);
+    preview.innerHTML = `<img src="${sharedRoundObjectUrl}" alt="Prévia do resumo visual da ${escapeHtml(roundLabel(round))}" />`;
+    downloadButton.disabled = false;
+    shareButton.disabled = false;
+  } catch (error) {
+    console.error(error);
+    preview.innerHTML = `<span>Não foi possível gerar a imagem. Tente novamente.</span>`;
+    toast("Não foi possível gerar o resumo da rodada.");
+  }
+}
+function downloadRoundShareImage() {
+  const round = getRoundById(sharedRoundId);
+  if (!round || !sharedRoundBlob) return;
+  const link = document.createElement("a");
+  link.href = sharedRoundObjectUrl;
+  link.download = shareRoundFilename(round);
+  link.click();
+}
+async function shareRoundImage() {
+  const round = getRoundById(sharedRoundId);
+  if (!round || !sharedRoundBlob) return;
+  const file = new File([sharedRoundBlob], shareRoundFilename(round), { type: "image/png" });
+  const shareData = { title: `${roundLabel(round)} · G.P.F.C`, text: `Confira os resultados da ${roundLabel(round)} da Galera da Pelada.`, files: [file] };
+  if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+    try {
+      await navigator.share(shareData);
+      return;
+    } catch (error) {
+      if (error.name === "AbortError") return;
+      console.warn("Compartilhamento nativo indisponível.", error);
+    }
+  }
+  downloadRoundShareImage();
+  toast("Imagem baixada. Agora você pode enviá-la pelo aplicativo desejado.");
+}
 function roundGamesSummaryMarkup(roundId, compact = false) {
   const round = getRoundById(roundId);
   const results = roundResults(roundId);
@@ -995,7 +1250,7 @@ function publicRoundTimelineMarkup(round) {
     const winner = winnerSide === "home" ? game.home : winnerSide === "away" ? game.away : "Empate";
     return `<li class="round-timeline-game"><span>JOGO ${String(game.number || index + 1).padStart(2, "0")}</span><strong>${escapeHtml(game.home)} <b>${game.homeScore} \u00d7 ${game.awayScore}</b> ${escapeHtml(game.away)}</strong><small>${winnerSide ? `Vencedor: <b>${escapeHtml(winner)}</b> \u00b7 ${escapeHtml(resultLabel(game))}` : "Empate sem decis\u00e3o registrada"}</small></li>`;
   }).join("") : `<li class="round-timeline-empty">Nenhum confronto salvo nesta rodada.</li>`;
-  return `<article class="round-public-history-item round-timeline-item"><header class="round-timeline-heading"><div><span class="round-status ${round.status}">${roundStatusLabel(round).toUpperCase()}</span><p class="eyebrow">${roundLabel(round).toUpperCase()}</p><strong>${formatDate(round.date)}</strong><small>${escapeHtml(round.place || DEFAULT_VENUE_NAME)} \u00b7 ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</small></div><div class="round-timeline-actions"><div class="round-timeline-leader"><span>TIME COM MAIS VIT\u00d3RIAS</span><strong>${escapeHtml(leaderText)}</strong><small>${leaders.length ? `${highestWins} ${highestWins === 1 ? "vit\u00f3ria" : "vit\u00f3rias"}` : "Aguardando resultado"}</small></div><button class="button secondary round-timeline-toggle" data-toggle-round-details="${round.id}" type="button" aria-expanded="${expanded}">${expanded ? "Ocultar detalhes" : "Ver detalhes"}</button></div></header><ol class="round-timeline-games">${gameRows}</ol><div class="round-public-details"${expanded ? "" : " hidden"}><div class="round-games-list">${games.map(publicGameMarkup).join("")}</div>${roundGamesSummaryMarkup(round.id, true)}${roundHighlightsMarkup(round.id, true)}${roundClipsSectionMarkup(round.id)}${attendanceListMarkup(round.id)}</div></article>`;
+  return `<article class="round-public-history-item round-timeline-item"><header class="round-timeline-heading"><div><span class="round-status ${round.status}">${roundStatusLabel(round).toUpperCase()}</span><p class="eyebrow">${roundLabel(round).toUpperCase()}</p><strong>${formatDate(round.date)}</strong><small>${escapeHtml(round.place || DEFAULT_VENUE_NAME)} \u00b7 ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</small></div><div class="round-timeline-actions"><div class="round-timeline-leader"><span>TIME COM MAIS VIT\u00d3RIAS</span><strong>${escapeHtml(leaderText)}</strong><small>${leaders.length ? `${highestWins} ${highestWins === 1 ? "vit\u00f3ria" : "vit\u00f3rias"}` : "Aguardando resultado"}</small></div><div class="round-timeline-buttons"><button class="button secondary round-share-button" data-share-round="${round.id}" type="button"${games.length ? "" : " disabled"}>Compartilhar rodada</button><button class="button secondary round-timeline-toggle" data-toggle-round-details="${round.id}" type="button" aria-expanded="${expanded}">${expanded ? "Ocultar detalhes" : "Ver detalhes"}</button></div></div></header><ol class="round-timeline-games">${gameRows}</ol><div class="round-public-details"${expanded ? "" : " hidden"}><div class="round-games-list">${games.map(publicGameMarkup).join("")}</div>${roundGamesSummaryMarkup(round.id, true)}${roundHighlightsMarkup(round.id, true)}${roundClipsSectionMarkup(round.id)}${attendanceListMarkup(round.id)}</div></article>`;
 }
 function renderPublicRounds() {
   const currentContainer = document.querySelector("#public-round-week");
@@ -1013,7 +1268,7 @@ function renderPublicRounds() {
     return;
   }
   const games = roundGames(currentRound.id).filter(isCompletedGame);
-  currentContainer.innerHTML = `<div class="round-public-heading"><span class="round-status ${currentRound.status}">${roundStatusLabel(currentRound).toUpperCase()}</span><div><p class="eyebrow">${roundLabel(currentRound).toUpperCase()}</p><h2>${formatDate(currentRound.date)}</h2><p>${escapeHtml(currentRound.place || DEFAULT_VENUE_NAME)} · ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</p>${venueMapLink("Abrir CT Caxangá no GPS")}</div></div><div class="round-games-list public-round-games">${games.length ? games.map(publicGameMarkup).join("") : `<div class="saved-game-empty">Os confrontos desta rodada ainda serão definidos.</div>`}</div>${roundGamesSummaryMarkup(currentRound.id)}${roundHighlightsMarkup(currentRound.id)}${roundClipsSectionMarkup(currentRound.id)}${attendanceListMarkup(currentRound.id)}`;
+  currentContainer.innerHTML = `<div class="round-public-heading"><span class="round-status ${currentRound.status}">${roundStatusLabel(currentRound).toUpperCase()}</span><div><p class="eyebrow">${roundLabel(currentRound).toUpperCase()}</p><h2>${formatDate(currentRound.date)}</h2><p>${escapeHtml(currentRound.place || DEFAULT_VENUE_NAME)} · ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</p>${venueMapLink("Abrir CT Caxangá no GPS")}</div><button class="button secondary round-share-button" data-share-round="${currentRound.id}" type="button"${games.length ? "" : " disabled"}>Compartilhar rodada <span>↗</span></button></div><div class="round-games-list public-round-games">${games.length ? games.map(publicGameMarkup).join("") : `<div class="saved-game-empty">Os confrontos desta rodada ainda serão definidos.</div>`}</div>${roundGamesSummaryMarkup(currentRound.id)}${roundHighlightsMarkup(currentRound.id)}${roundClipsSectionMarkup(currentRound.id)}${attendanceListMarkup(currentRound.id)}`;
   const historicalRounds = rounds.filter(round => round.id !== currentRound.id);
   historyContainer.innerHTML = historicalRounds.length
     ? historicalRounds.map(publicRoundTimelineMarkup).join("")
@@ -2332,6 +2587,11 @@ document.querySelector("#athletes-grid").addEventListener("click", event => {
   if (card) openAthleteProfile(card.dataset.openAthlete);
 });
 document.querySelector("#public-round-history").addEventListener("click", event => {
+  const shareButton = event.target.closest("[data-share-round]");
+  if (shareButton) {
+    openShareRoundModal(shareButton.dataset.shareRound);
+    return;
+  }
   const button = event.target.closest("[data-toggle-round-details]");
   if (!button) return;
   const roundId = button.dataset.toggleRoundDetails;
@@ -2339,6 +2599,13 @@ document.querySelector("#public-round-history").addEventListener("click", event 
   else expandedPublicRoundIds.add(roundId);
   renderPublicRounds();
 });
+document.querySelector("#public-round-week").addEventListener("click", event => {
+  const button = event.target.closest("[data-share-round]");
+  if (button) openShareRoundModal(button.dataset.shareRound);
+});
+document.querySelectorAll("[data-close-share-round]").forEach(button => button.addEventListener("click", closeShareRoundModal));
+document.querySelector("#download-round-image").addEventListener("click", downloadRoundShareImage);
+document.querySelector("#share-round-image").addEventListener("click", shareRoundImage);
 document.querySelector("#player-photo").addEventListener("change", event => {
   const file = event.target.files[0];
   if (!file || !validatePlayerPhoto(file, event.target)) return;
