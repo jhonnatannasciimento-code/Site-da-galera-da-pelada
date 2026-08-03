@@ -110,6 +110,14 @@
           <article><span class="stat-label">ASSISTÊNCIAS</span><strong id="total-assists">0</strong><small>na temporada</small></article>
         </section>
 
+        <section class="section-wrap notices-section" aria-labelledby="notices-title">
+          <div class="section-heading-row notices-heading">
+            <div><p class="eyebrow">COMUNICADOS OFICIAIS</p><h2 id="notices-title">Mural da Pelada</h2></div>
+            <span class="mini-label">AVISOS IMPORTANTES</span>
+          </div>
+          <div id="home-notices" class="notices-grid" aria-live="polite"></div>
+        </section>
+
         <section class="section-wrap section-heading-row" aria-labelledby="week-title">
           <div>
             <p class="eyebrow">OS MELHORES DA &Uacute;LTIMA RODADA</p>
@@ -265,6 +273,24 @@
               <button id="save-highlight-clip" class="button primary" type="submit">Adicionar lance <span>+</span></button>
             </form>
             <div id="highlight-clips-list" class="highlight-clips-admin-list"></div>
+          </article>
+
+          <article class="admin-card notices-admin-card">
+            <div class="admin-card-heading"><span class="step">06</span><div><h2>Mural de avisos</h2><p>Publique comunicados para todos. Você pode fixar, editar, arquivar ou definir uma data de encerramento.</p></div></div>
+            <form id="notice-form" class="form-stack">
+              <input id="notice-id" type="hidden" />
+              <div class="form-row">
+                <label>Título<input id="notice-title" required maxlength="90" placeholder="Ex.: Pelada confirmada" /></label>
+                <label>Tipo<select id="notice-category"><option value="important">Importante</option><option value="round">Rodada</option><option value="financial">Financeiro</option><option value="general">Geral</option></select></label>
+              </div>
+              <label>Mensagem<textarea id="notice-message" required maxlength="500" rows="4" placeholder="Escreva o aviso como deseja que ele apareça no mural."></textarea><small class="field-help">Aceita emojis e quebras de linha.</small></label>
+              <div class="notice-form-options">
+                <label>Exibir até (opcional)<input id="notice-expires-on" type="date" /></label>
+                <label class="notice-pin-option"><input id="notice-pinned" type="checkbox" /> Fixar no topo do mural</label>
+              </div>
+              <div class="notice-form-actions"><button id="save-notice" class="button primary" type="submit">Publicar aviso <span>→</span></button><button id="cancel-notice-edit" class="button secondary" type="button" hidden>Cancelar edição</button></div>
+            </form>
+            <div id="notices-admin-list" class="notices-admin-list"></div>
           </article>
 
           <article class="admin-card adjustment-card">

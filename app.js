@@ -18,7 +18,7 @@ const DEFAULT_DIRECTORS = [
   { id: "almir", slot: 2, name: "Almir", role: "Diretor Auxiliar", instagramUrl: "https://www.instagram.com/almir.claudino/", photo: null },
   { id: "jhonnatan", slot: 3, name: "Jhonnatan", role: "Diretor de Marketing", instagramUrl: "https://www.instagram.com/jhonnatan_nascimento/", photo: null }
 ];
-let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [], highlightClips: [], directors: [] };
+let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [], highlightClips: [], directors: [], notices: [] };
 let selectedRanking = "goals";
 let selectedPositionFilter = "all";
 let expandedPublicRoundIds = new Set();
@@ -36,6 +36,7 @@ let rodizioAvailable = true;
 let goalEventsAvailable = true;
 let highlightClipsAvailable = true;
 let directorsAvailable = true;
+let noticesAvailable = true;
 let gameDraftEntries = null;
 let gameGoalEvents = [];
 let lineupSearchText = "";
@@ -82,6 +83,21 @@ function formatDate(date) {
 function shortDate(date) {
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" })
     .format(new Date(`${date}T12:00:00`)).replace(".", "");
+}
+function noticeTypeInfo(category) {
+  return {
+    important: { label: "Importante", icon: "!" },
+    round: { label: "Rodada", icon: "⚽" },
+    financial: { label: "Financeiro", icon: "R$" },
+    general: { label: "Geral", icon: "i" }
+  }[category] || { label: "Geral", icon: "i" };
+}
+function noticeIsVisible(notice) {
+  const today = new Date().toISOString().slice(0, 10);
+  return notice.status === "active" && (!notice.expiresOn || notice.expiresOn >= today);
+}
+function sortedNotices(notices) {
+  return [...notices].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || String(b.publishedAt || "").localeCompare(String(a.publishedAt || "")));
 }
 function getLatestGame() { return [...data.games].sort((a, b) => b.date.localeCompare(a.date))[0]; }
 function getEditingGame() { return data.games.find(game => game.id === editingGameId); }
@@ -1017,6 +1033,47 @@ function renderHomeClips() {
   }
   container.innerHTML = `<div class="highlight-clips-meta"><span>${roundLabel(round)} · ${formatDate(round.date)}</span><small>VÍDEOS NO INSTAGRAM</small></div><div class="highlight-clips-grid">${highlightClipsMarkup(round.id)}</div>`;
 }
+function noticeMessageMarkup(message) {
+  return escapeHtml(message).replace(/\r?\n/g, "<br>");
+}
+function renderHomeNotices() {
+  const container = document.querySelector("#home-notices");
+  if (!container) return;
+  if (!noticesAvailable) {
+    container.innerHTML = `<div class="empty-state">Os avisos oficiais da pelada aparecerão aqui.</div>`;
+    return;
+  }
+  const notices = sortedNotices(data.notices.filter(noticeIsVisible));
+  container.innerHTML = notices.length ? notices.map(notice => {
+    const info = noticeTypeInfo(notice.category);
+    return `<article class="notice-card notice-${escapeHtml(notice.category)}${notice.pinned ? " is-pinned" : ""}"><header><span class="notice-category"><b>${info.icon}</b>${info.label}</span>${notice.pinned ? `<span class="notice-pinned">FIXADO</span>` : ""}</header><h3>${escapeHtml(notice.title)}</h3><p>${noticeMessageMarkup(notice.message)}</p><footer><span>Publicado em ${formatDate(String(notice.publishedAt).slice(0, 10))}</span>${notice.expiresOn ? `<span>Até ${formatDate(notice.expiresOn)}</span>` : ""}</footer></article>`;
+  }).join("") : `<div class="empty-state">Nenhum aviso importante no momento. Acompanhe aqui as novidades da Galera da Pelada.</div>`;
+}
+function resetNoticeForm() {
+  const form = document.querySelector("#notice-form");
+  if (!form) return;
+  form.reset();
+  document.querySelector("#notice-id").value = "";
+  document.querySelector("#save-notice").innerHTML = `Publicar aviso <span>→</span>`;
+  document.querySelector("#cancel-notice-edit").hidden = true;
+}
+function renderAdminNotices() {
+  const form = document.querySelector("#notice-form");
+  const list = document.querySelector("#notices-admin-list");
+  if (!form || !list) return;
+  if (!noticesAvailable) {
+    form.querySelectorAll("input, textarea, select, button").forEach(field => field.disabled = true);
+    list.innerHTML = `<p class="adjustment-note">Execute a migração 016 no Supabase para ativar o mural de avisos.</p>`;
+    return;
+  }
+  form.querySelectorAll("input, textarea, select, button").forEach(field => field.disabled = false);
+  const notices = sortedNotices(data.notices);
+  list.innerHTML = notices.length ? notices.map(notice => {
+    const info = noticeTypeInfo(notice.category);
+    const isArchived = notice.status === "archived";
+    return `<article class="notice-admin-item${isArchived ? " is-archived" : ""}"><div class="notice-admin-copy"><span class="notice-category"><b>${info.icon}</b>${info.label}</span><strong>${escapeHtml(notice.title)}</strong><p>${noticeMessageMarkup(notice.message)}</p><small>${isArchived ? "Arquivado" : notice.pinned ? "Fixado no mural" : "Publicado"}${notice.expiresOn ? ` · Até ${formatDate(notice.expiresOn)}` : ""}</small></div><div class="notice-admin-actions"><button class="edit-notice" type="button" data-edit-notice="${notice.id}">Editar</button><button class="archive-notice" type="button" data-archive-notice="${notice.id}">${isArchived ? "Reativar" : "Arquivar"}</button></div></article>`;
+  }).join("") : `<p class="adjustment-note">Nenhum aviso criado ainda. Publique o primeiro comunicado para ele aparecer na página inicial.</p>`;
+}
 function renderAdminHighlightClips() {
   const select = document.querySelector("#highlight-clip-player");
   const form = document.querySelector("#highlight-clip-form");
@@ -1165,6 +1222,7 @@ function renderAll() {
   renderHome();
   renderHomeHighlights();
   renderHomeClips();
+  renderHomeNotices();
   renderRanking();
   renderPublicRounds();
   renderPlayers(document.querySelector("#player-search")?.value || "");
@@ -1177,6 +1235,7 @@ function renderAll() {
   renderRoundWeek();
   renderRoundAwards();
   renderAdminHighlightClips();
+  renderAdminNotices();
   updateGameFormState();
 }
 const VIEW_PAGE_TITLES = {
@@ -1207,7 +1266,7 @@ function toast(message) {
 }
 
 async function loadRemoteData(showMessage = false) {
-  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult, directorsResult] = await Promise.all([
+  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult, directorsResult, noticesResult] = await Promise.all([
     supabaseClient.from("players").select("*").order("full_name"),
     supabaseClient.from("games").select("*").order("played_on", { ascending: false }),
     supabaseClient.from("player_game_stats").select("*"),
@@ -1217,7 +1276,8 @@ async function loadRemoteData(showMessage = false) {
     supabaseClient.from("round_awards").select("*"),
     supabaseClient.from("game_goal_events").select("*").order("event_number"),
     supabaseClient.from("round_highlight_clips").select("*").order("created_at", { ascending: false }),
-    supabaseClient.from("director_profiles").select("*").order("slot")
+    supabaseClient.from("director_profiles").select("*").order("slot"),
+    supabaseClient.from("bulletin_notices").select("*").order("published_at", { ascending: false })
   ]);
   const error = playersResult.error || gamesResult.error || statsResult.error || adjustmentsResult.error;
   if (error) { toast(`Não foi possível carregar os dados: ${error.message}`); return; }
@@ -1227,6 +1287,7 @@ async function loadRemoteData(showMessage = false) {
   goalEventsAvailable = !goalEventsResult.error;
   highlightClipsAvailable = !highlightClipsResult.error;
   directorsAvailable = !directorsResult.error;
+  noticesAvailable = !noticesResult.error;
   const gamesById = new Map((gamesResult.data || []).map(game => [game.id, game]));
   const gameStats = new Map((gamesResult.data || []).map(game => [game.id, []]));
   (statsResult.data || []).forEach(stat => gameStats.get(stat.game_id)?.push({
@@ -1253,7 +1314,8 @@ async function loadRemoteData(showMessage = false) {
     roundAwards: (awardsResult.data || []).map(award => ({ roundId: award.round_id, playerId: award.player_id, category: award.category })),
     goalEvents: (goalEventsResult.data || []).map(event => ({ id: event.id, gameId: event.game_id, team: String(event.team_number), scorerId: event.scorer_id, assisterId: event.assister_id, ownGoal: Boolean(event.is_own_goal), number: event.event_number })),
     highlightClips: (highlightClipsResult.data || []).map(clip => ({ id: clip.id, roundId: clip.round_id, playerId: clip.player_id, type: clip.clip_type, instagramUrl: clip.instagram_url, caption: clip.caption, createdAt: clip.created_at })),
-    directors: (directorsResult.data || []).map(director => ({ id: director.id, slot: director.slot, name: director.full_name, role: director.role, instagramUrl: director.instagram_url, photo: director.photo_url }))
+    directors: (directorsResult.data || []).map(director => ({ id: director.id, slot: director.slot, name: director.full_name, role: director.role, instagramUrl: director.instagram_url, photo: director.photo_url })),
+    notices: (noticesResult.data || []).map(notice => ({ id: notice.id, title: notice.title, message: notice.message, category: notice.category, pinned: Boolean(notice.is_pinned), status: notice.status, expiresOn: notice.expires_on, publishedAt: notice.published_at }))
   };
   if (activeRoundId && !getRoundById(activeRoundId)) activeRoundId = null;
   if (!activeRoundId) {
@@ -1990,6 +2052,62 @@ document.querySelector("#highlight-clips-list").addEventListener("click", async 
   if (error) { toast(`Não foi possível excluir o lance: ${error.message}`); return; }
   await loadRemoteData();
   toast("Lance excluído.");
+});
+document.querySelector("#notice-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!requireAdmin()) return;
+  if (!noticesAvailable) { toast("Execute a migração 016 no Supabase para ativar o mural."); return; }
+  const id = document.querySelector("#notice-id").value;
+  const title = document.querySelector("#notice-title").value.trim();
+  const message = document.querySelector("#notice-message").value.trim();
+  if (title.length < 2 || message.length < 2) { toast("Preencha o título e a mensagem do aviso."); return; }
+  const payload = {
+    title,
+    message,
+    category: document.querySelector("#notice-category").value,
+    is_pinned: document.querySelector("#notice-pinned").checked,
+    expires_on: document.querySelector("#notice-expires-on").value || null,
+    updated_at: new Date().toISOString()
+  };
+  const request = id
+    ? supabaseClient.from("bulletin_notices").update(payload).eq("id", id)
+    : supabaseClient.from("bulletin_notices").insert(payload);
+  const { error } = await request;
+  if (error) { toast(`Não foi possível salvar o aviso: ${error.message}`); return; }
+  resetNoticeForm();
+  await loadRemoteData();
+  toast(id ? "Aviso atualizado no mural." : "Aviso publicado no mural.");
+});
+document.querySelector("#cancel-notice-edit").addEventListener("click", resetNoticeForm);
+document.querySelector("#notices-admin-list").addEventListener("click", async event => {
+  const editButton = event.target.closest("[data-edit-notice]");
+  const archiveButton = event.target.closest("[data-archive-notice]");
+  if (editButton) {
+    if (!requireAdmin()) return;
+    const notice = data.notices.find(item => item.id === editButton.dataset.editNotice);
+    if (!notice) return;
+    document.querySelector("#notice-id").value = notice.id;
+    document.querySelector("#notice-title").value = notice.title;
+    document.querySelector("#notice-message").value = notice.message;
+    document.querySelector("#notice-category").value = notice.category;
+    document.querySelector("#notice-pinned").checked = notice.pinned;
+    document.querySelector("#notice-expires-on").value = notice.expiresOn || "";
+    document.querySelector("#save-notice").innerHTML = `Salvar alterações <span>→</span>`;
+    document.querySelector("#cancel-notice-edit").hidden = false;
+    document.querySelector("#notice-form").scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  if (!archiveButton || !requireAdmin()) return;
+  const notice = data.notices.find(item => item.id === archiveButton.dataset.archiveNotice);
+  if (!notice) return;
+  const archiving = notice.status !== "archived";
+  if (!confirm(archiving ? "Arquivar este aviso? Ele deixará de aparecer para o público." : "Reativar este aviso no mural?")) return;
+  const { error } = await supabaseClient.from("bulletin_notices")
+    .update({ status: archiving ? "archived" : "active", updated_at: new Date().toISOString() })
+    .eq("id", notice.id);
+  if (error) { toast(`Não foi possível atualizar o aviso: ${error.message}`); return; }
+  await loadRemoteData();
+  toast(archiving ? "Aviso arquivado." : "Aviso reativado no mural.");
 });
 async function submitRodizioGame() {
   if (!requireAdmin()) return;
