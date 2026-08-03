@@ -6124,3 +6124,109 @@ footer {
     height: 270px;
   }
 }
+
+/* Registro de atividades administrativas */
+.audit-admin-card {
+  grid-column: 1 / -1;
+}
+.audit-toolbar {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.audit-toolbar .button {
+  min-height: 42px;
+}
+.audit-log-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  color: #dcefff;
+}
+.audit-log-heading small {
+  color: #7796b3;
+}
+.audit-log-list {
+  display: grid;
+  max-height: 520px;
+  overflow-y: auto;
+}
+.audit-log-item {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 13px 4px;
+  border-bottom: 1px solid rgba(78, 174, 235, 0.14);
+}
+.audit-action {
+  padding: 6px 8px;
+  border: 1px solid currentColor;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+}
+.audit-created {
+  color: #67e8a5;
+  background: rgba(24, 131, 77, 0.14);
+}
+.audit-updated {
+  color: #62d9ff;
+  background: rgba(35, 137, 190, 0.14);
+}
+.audit-deleted {
+  color: #ff8d9d;
+  background: rgba(179, 51, 71, 0.14);
+}
+.audit-log-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+.audit-log-copy strong {
+  overflow: hidden;
+  color: #e9f7ff;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.audit-log-copy small {
+  color: #829fba;
+  font-size: 9px;
+}
+.audit-log-copy p {
+  margin: 1px 0 0;
+  color: #a8c1d6;
+  font-size: 9px;
+}
+@media (max-width: 700px) {
+  .audit-toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
+  .audit-toolbar .button {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 480px) {
+  .audit-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .audit-toolbar .button {
+    grid-column: auto;
+  }
+  .audit-log-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .audit-log-item {
+    grid-template-columns: 66px minmax(0, 1fr);
+    gap: 9px;
+  }
+}
