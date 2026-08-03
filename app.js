@@ -24,7 +24,7 @@ const DEFAULT_DIRECTORS = [
   { id: "almir", slot: 2, name: "Almir", role: "Diretor Auxiliar", instagramUrl: "https://www.instagram.com/almir.claudino/", photo: null },
   { id: "jhonnatan", slot: 3, name: "Jhonnatan", role: "Diretor de Marketing", instagramUrl: "https://www.instagram.com/jhonnatan_nascimento/", photo: null }
 ];
-let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [], highlightClips: [], directors: [], notices: [], mediaItems: [], hallAwards: [], auditLogs: [] };
+let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [], highlightClips: [], directors: [], notices: [], mediaItems: [], hallAwards: [], monthlyFees: [], auditLogs: [] };
 let selectedRanking = "goals";
 let selectedPositionFilter = "all";
 let selectedMediaType = "all";
@@ -53,6 +53,7 @@ let directorsAvailable = true;
 let noticesAvailable = true;
 let mediaAvailable = true;
 let hallOfFameAvailable = true;
+let monthlyFeesAvailable = true;
 let auditLogsAvailable = true;
 let gameDraftEntries = null;
 let gameGoalEvents = [];
@@ -61,6 +62,8 @@ let goalEventCounter = 0;
 let manualScoreMode = false;
 let attendanceFilter = "all";
 let attendanceDirty = false;
+let selectedMonthlyFeeMonth = new Date().toISOString().slice(0, 7);
+let selectedMonthlyFeeStatus = "all";
 const PUBLIC_ATTENDANCE_PLAYER_KEY = "gpfc-public-attendance-player";
 let publicAttendancePlayerId = localStorage.getItem(PUBLIC_ATTENDANCE_PLAYER_KEY) || "";
 let publicAttendanceChoice = "";
@@ -1689,6 +1692,61 @@ function renderAdminDirectors() {
   }
   container.innerHTML = directorList().map(director => `<article class="admin-director-item"><div>${directorPhotoMarkup(director)}<span><strong>${escapeHtml(director.name)}</strong><small>${escapeHtml(director.role)}</small></span></div><button class="edit-director" data-edit-director="${director.id}" type="button">Editar</button></article>`).join("");
 }
+function monthlyFeeStatusInfo(status) {
+  return {
+    paid: { label: "Pago", className: "paid" },
+    pending: { label: "Pendente", className: "pending" },
+    exempt: { label: "Isento", className: "exempt" }
+  }[status] || { label: "Pendente", className: "pending" };
+}
+function selectedMonthlyFeeReference() {
+  return `${selectedMonthlyFeeMonth}-01`;
+}
+function monthlyFeeFor(playerId) {
+  return data.monthlyFees.find(fee => fee.playerId === playerId && fee.referenceMonth === selectedMonthlyFeeReference()) || null;
+}
+function formatReferenceMonth(month) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  if (!year || !monthNumber) return month;
+  return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(year, monthNumber - 1, 1));
+}
+function renderAdminMonthlyFees() {
+  const list = document.querySelector("#monthly-fees-list");
+  const summary = document.querySelector("#monthly-fees-summary");
+  const monthInput = document.querySelector("#monthly-fee-month");
+  const filter = document.querySelector("#monthly-fee-filter");
+  if (!list || !summary || !monthInput || !filter) return;
+  monthInput.value = selectedMonthlyFeeMonth;
+  filter.value = selectedMonthlyFeeStatus;
+  if (!monthlyFeesAvailable) {
+    summary.textContent = "Mensalidades ainda não configuradas";
+    list.innerHTML = `<p class="adjustment-note">Execute a migração 021 no Supabase para ativar o controle de mensalidades.</p>`;
+    return;
+  }
+
+  const entries = [...data.players]
+    .sort((a, b) => displayName(a).localeCompare(displayName(b), "pt-BR"))
+    .map(player => {
+      const fee = monthlyFeeFor(player.id);
+      return { player, fee, status: fee?.status || "pending" };
+    });
+  const totals = entries.reduce((all, entry) => {
+    all[entry.status] += 1;
+    return all;
+  }, { paid: 0, pending: 0, exempt: 0 });
+  summary.innerHTML = `<strong>${escapeHtml(formatReferenceMonth(selectedMonthlyFeeMonth))}</strong><span>${totals.paid} pagos · ${totals.pending} pendentes · ${totals.exempt} isentos</span>`;
+  const filtered = entries.filter(entry => selectedMonthlyFeeStatus === "all" || entry.status === selectedMonthlyFeeStatus);
+  list.innerHTML = filtered.length ? filtered.map(({ player, fee, status }) => {
+    const info = monthlyFeeStatusInfo(status);
+    return `<article class="monthly-fee-row" data-monthly-fee-player="${player.id}">
+      <div class="monthly-fee-player">${avatar(player)}<span><strong>${escapeHtml(displayName(player))}</strong><small>#${escapeHtml(shirtNumber(player))} · ${escapeHtml(player.position)}</small></span></div>
+      <span class="monthly-fee-badge fee-${info.className}">${info.label}</span>
+      <label class="monthly-fee-status-field"><span>Situação</span><span class="monthly-fee-status-control fee-${info.className}"><span class="monthly-fee-status-dot" aria-hidden="true"></span><select class="monthly-fee-status" aria-label="Situação da mensalidade de ${escapeHtml(displayName(player))}"><option value="pending"${status === "pending" ? " selected" : ""}>Pendente</option><option value="paid"${status === "paid" ? " selected" : ""}>Pago</option><option value="exempt"${status === "exempt" ? " selected" : ""}>Isento</option></select></span></label>
+      <label>Observação<input class="monthly-fee-notes" maxlength="300" value="${escapeHtml(fee?.notes || "")}" placeholder="Opcional" /></label>
+      <button class="button secondary save-monthly-fee" type="button">Salvar</button>
+    </article>`;
+  }).join("") : `<div class="empty-state">Nenhum atleta encontrado neste filtro.</div>`;
+}
 const AUDIT_ENTITY_INFO = {
   players: { label: "Atleta", group: "players" },
   rounds: { label: "Rodada", group: "rounds" },
@@ -1698,6 +1756,7 @@ const AUDIT_ENTITY_INFO = {
   round_attendance: { label: "Presença", group: "statistics" },
   round_awards: { label: "Destaque da rodada", group: "statistics" },
   game_goal_events: { label: "Gol ou assistência", group: "statistics" },
+  player_monthly_fees: { label: "Mensalidade", group: "financial" },
   bulletin_notices: { label: "Aviso", group: "notices" }
 };
 const AUDIT_ACTION_INFO = {
@@ -1712,7 +1771,9 @@ const AUDIT_FIELD_LABELS = {
   away_score: "placar do segundo time", result_method: "decisão", winner_side: "vencedor",
   games: "jogos", goals: "gols", assists: "assistências", craque: "craque",
   xerife: "xerife", paredao: "paredão", title: "título", message: "mensagem",
-  category: "categoria", is_pinned: "fixação", expires_on: "validade", attendance_closed: "lista de presença"
+  category: "categoria", is_pinned: "fixação", expires_on: "validade", attendance_closed: "lista de presença",
+  reference_month: "mês de referência", paid_at: "data do pagamento", notes: "observação",
+  payment_override: "liberação excepcional", payment_override_by: "administrador da liberação"
 };
 function auditPlayerName(snapshot) {
   const playerId = snapshot?.player_id || snapshot?.scorer_id;
@@ -1724,7 +1785,7 @@ function auditRecordLabel(log) {
   if (log.entityType === "rounds") return `Rodada ${snapshot.round_number || ""}`.trim();
   if (log.entityType === "games") return snapshot.game_number ? `Jogo ${snapshot.game_number}` : "Confronto";
   if (log.entityType === "bulletin_notices") return snapshot.title || "Aviso";
-  if (["player_game_stats", "player_season_adjustments", "round_attendance", "round_awards", "game_goal_events"].includes(log.entityType)) return auditPlayerName(snapshot);
+  if (["player_game_stats", "player_season_adjustments", "round_attendance", "round_awards", "game_goal_events", "player_monthly_fees"].includes(log.entityType)) return auditPlayerName(snapshot);
   return AUDIT_ENTITY_INFO[log.entityType]?.label || log.entityType;
 }
 function auditChangeSummary(log) {
@@ -1832,6 +1893,22 @@ function exportDataset(type) {
       filename: `gpfc-presencas-${SEASON}-${exportDateStamp()}.csv`,
       headers: ["rodada_id", "rodada", "data", "atleta_id", "atleta", "situacao", "codigo_situacao"],
       rows
+    };
+  }
+  if (type === "fees") {
+    return {
+      filename: `gpfc-mensalidades-${selectedMonthlyFeeMonth}-${exportDateStamp()}.csv`,
+      headers: ["mes_referencia", "atleta_id", "atleta", "camisa", "situacao", "pago_em", "observacao", "atualizado_em"],
+      rows: [...data.players]
+        .sort((a, b) => displayName(a).localeCompare(displayName(b), "pt-BR"))
+        .map(player => {
+          const fee = monthlyFeeFor(player.id);
+          return [
+            selectedMonthlyFeeReference(), player.id, displayName(player), shirtNumber(player),
+            monthlyFeeStatusInfo(fee?.status || "pending").label,
+            fee?.paidAt || "", fee?.notes || "", fee?.updatedAt || ""
+          ];
+        })
     };
   }
   const rows = data.goalEvents.map(event => {
@@ -1992,6 +2069,7 @@ function renderAll() {
   renderAdminNotices();
   renderAdminMedia();
   renderAdminHallOfFame();
+  renderAdminMonthlyFees();
   renderAdminAuditLogs();
   renderExportBackupSummary();
   updateGameFormState();
@@ -2026,7 +2104,7 @@ function toast(message) {
 }
 
 async function loadRemoteData(showMessage = false) {
-  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult, directorsResult, noticesResult, mediaItemsResult, mediaPlayersResult, hallAwardsResult, auditLogsResult] = await Promise.all([
+  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult, directorsResult, noticesResult, mediaItemsResult, mediaPlayersResult, hallAwardsResult, monthlyFeesResult, auditLogsResult] = await Promise.all([
     supabaseClient.from("players").select("*").order("full_name"),
     supabaseClient.from("games").select("*").order("played_on", { ascending: false }),
     supabaseClient.from("player_game_stats").select("*"),
@@ -2042,6 +2120,9 @@ async function loadRemoteData(showMessage = false) {
     supabaseClient.from("media_item_players").select("*"),
     supabaseClient.from("hall_of_fame_awards").select("*").order("award_year", { ascending: false }),
     isAdmin
+      ? supabaseClient.from("player_monthly_fees").select("*").order("reference_month", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+    isAdmin
       ? supabaseClient.from("admin_activity_logs").select("*").order("created_at", { ascending: false }).limit(150)
       : Promise.resolve({ data: [], error: null })
   ]);
@@ -2056,6 +2137,7 @@ async function loadRemoteData(showMessage = false) {
   noticesAvailable = !noticesResult.error;
   mediaAvailable = !mediaItemsResult.error && !mediaPlayersResult.error;
   hallOfFameAvailable = !hallAwardsResult.error;
+  monthlyFeesAvailable = !monthlyFeesResult.error;
   auditLogsAvailable = !auditLogsResult.error;
   const gamesById = new Map((gamesResult.data || []).map(game => [game.id, game]));
   const gameStats = new Map((gamesResult.data || []).map(game => [game.id, []]));
@@ -2116,6 +2198,15 @@ async function loadRemoteData(showMessage = false) {
       status: award.status,
       createdAt: award.created_at,
       updatedAt: award.updated_at
+    })),
+    monthlyFees: (monthlyFeesResult.data || []).map(fee => ({
+      playerId: fee.player_id,
+      referenceMonth: fee.reference_month,
+      status: fee.status,
+      paidAt: fee.paid_at,
+      notes: fee.notes,
+      updatedBy: fee.updated_by,
+      updatedAt: fee.updated_at
     })),
     auditLogs: (auditLogsResult.data || []).map(log => ({
       id: log.id,
@@ -3668,6 +3759,61 @@ document.querySelector("#player-edit-form").addEventListener("submit", async eve
   toast("Atleta e estatísticas atualizados.");
 });
 
+async function saveMonthlyFeeRow(row, button) {
+  if (!requireAdmin() || !monthlyFeesAvailable) return;
+  const playerId = row.dataset.monthlyFeePlayer;
+  const status = row.querySelector(".monthly-fee-status").value;
+  const notes = row.querySelector(".monthly-fee-notes").value.trim();
+  const existing = monthlyFeeFor(playerId);
+  button.disabled = true;
+  button.textContent = "Salvando...";
+  const { error } = await supabaseClient.from("player_monthly_fees").upsert({
+    player_id: playerId,
+    reference_month: selectedMonthlyFeeReference(),
+    status,
+    paid_at: status === "paid" ? existing?.paidAt || new Date().toISOString() : null,
+    notes: notes || null,
+    updated_by: currentUser?.id || null,
+    updated_at: new Date().toISOString()
+  }, { onConflict: "player_id,reference_month" });
+  if (error) {
+    button.disabled = false;
+    button.textContent = "Salvar";
+    toast(`Não foi possível salvar a mensalidade: ${error.message}`);
+    return;
+  }
+  await loadRemoteData();
+  const player = data.players.find(item => item.id === playerId);
+  toast(`Mensalidade de ${displayName(player)} atualizada.`);
+}
+document.querySelector("#monthly-fee-month")?.addEventListener("change", event => {
+  selectedMonthlyFeeMonth = event.target.value || new Date().toISOString().slice(0, 7);
+  renderAdminMonthlyFees();
+});
+document.querySelector("#monthly-fee-filter")?.addEventListener("change", event => {
+  selectedMonthlyFeeStatus = event.target.value;
+  renderAdminMonthlyFees();
+});
+document.querySelector("#monthly-fees-list")?.addEventListener("click", event => {
+  const button = event.target.closest(".save-monthly-fee");
+  if (!button) return;
+  const row = button.closest("[data-monthly-fee-player]");
+  if (row) saveMonthlyFeeRow(row, button);
+});
+document.querySelector("#monthly-fees-list")?.addEventListener("change", event => {
+  const select = event.target.closest(".monthly-fee-status");
+  if (!select) return;
+  const row = select.closest(".monthly-fee-row");
+  const info = monthlyFeeStatusInfo(select.value);
+  const control = select.closest(".monthly-fee-status-control");
+  const badge = row?.querySelector(".monthly-fee-badge");
+  if (control) control.className = `monthly-fee-status-control fee-${info.className}`;
+  if (badge) {
+    badge.className = `monthly-fee-badge fee-${info.className}`;
+    badge.textContent = info.label;
+  }
+});
+
 document.querySelector("#audit-entity-filter")?.addEventListener("change", event => {
   selectedAuditEntity = event.target.value;
   renderAdminAuditLogs();
@@ -3799,7 +3945,7 @@ document.querySelector("#public-attendance-panel")?.addEventListener("submit", a
   });
   if (error) {
     renderPublicAttendanceConfirmation();
-    const migrationHint = /function|schema cache/i.test(error.message) ? " Execute a migração 017 no Supabase." : "";
+    const migrationHint = /function|schema cache/i.test(error.message) ? " Execute as migrações 017 e 021 no Supabase." : "";
     toast(`Não foi possível confirmar: ${error.message}${migrationHint}`);
     return;
   }
