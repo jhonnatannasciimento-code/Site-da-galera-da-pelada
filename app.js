@@ -1485,6 +1485,114 @@ function renderAdminAuditLogs() {
     return `<article class="audit-log-item"><span class="audit-action audit-${action.className}">${action.label}</span><div class="audit-log-copy"><strong>${escapeHtml(entity.label)} · ${escapeHtml(auditRecordLabel(log))}</strong><small>${escapeHtml(actor)} · ${escapeHtml(formatAuditDate(log.createdAt))}</small>${details ? `<p>${escapeHtml(details)}</p>` : ""}</div></article>`;
   }).join("") : `<div class="empty-state">Nenhuma atividade encontrada para estes filtros.</div>`;
 }
+function exportPlayerName(playerId) {
+  return data.players.find(player => player.id === playerId)?.name || "Atleta não encontrado";
+}
+function safeSpreadsheetValue(value) {
+  const text = value === null || value === undefined ? "" : String(value);
+  return /^[=+\-@]/.test(text) ? `'${text}` : text;
+}
+function csvCell(value) {
+  return `"${safeSpreadsheetValue(value).replaceAll('"', '""')}"`;
+}
+function csvDocument(headers, rows) {
+  return `\uFEFF${[headers, ...rows].map(row => row.map(csvCell).join(";")).join("\r\n")}`;
+}
+function downloadBackupFile(content, filename, type) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function exportDateStamp() {
+  return new Date().toISOString().slice(0, 10);
+}
+function exportDataset(type) {
+  if (type === "players") {
+    const attendanceByPlayer = Object.fromEntries(getAttendanceStats().map(item => [item.player.id, item]));
+    const rows = getStats().map(item => [
+      item.player.id, item.player.name, shirtNumber(item.player), item.player.position,
+      item.games, item.goals, item.assists, item.craque, item.xerife, item.paredao,
+      attendanceByPlayer[item.player.id]?.present || 0,
+      attendanceByPlayer[item.player.id]?.absent || 0,
+      attendanceByPlayer[item.player.id]?.unknown || 0,
+      item.player.photo || ""
+    ]);
+    return {
+      filename: `gpfc-atletas-estatisticas-${SEASON}-${exportDateStamp()}.csv`,
+      headers: ["id", "atleta", "camisa", "posicao", "jogos", "gols", "assistencias", "craque", "xerife", "paredao", "presencas", "faltas", "duvidas", "foto_url"],
+      rows
+    };
+  }
+  if (type === "rounds") {
+    return {
+      filename: `gpfc-rodadas-${SEASON}-${exportDateStamp()}.csv`,
+      headers: ["id", "temporada", "rodada", "data", "local", "status", "presenca_fechada", "confrontos"],
+      rows: data.rounds.map(round => [round.id, SEASON, round.number, round.date, round.place, round.status, round.attendanceClosed ? "sim" : "nao", roundGames(round.id).length])
+    };
+  }
+  if (type === "games") {
+    return {
+      filename: `gpfc-confrontos-${SEASON}-${exportDateStamp()}.csv`,
+      headers: ["id", "temporada", "rodada", "jogo", "data", "local", "time_1", "placar_time_1", "placar_time_2", "time_2", "decisao", "vencedor", "status"],
+      rows: data.games.map(game => {
+        const round = getRoundById(game.roundId);
+        const winner = game.winnerSide === "home" ? game.home : game.winnerSide === "away" ? game.away : "empate";
+        return [game.id, SEASON, round?.number || "", game.number, game.date, game.place, game.home, game.homeScore, game.awayScore, game.away, resultLabel(game), winner, game.status];
+      })
+    };
+  }
+  if (type === "attendance") {
+    const rows = data.rounds.flatMap(round => Object.entries(data.attendance[round.id] || {}).map(([playerId, status]) => [
+      round.id, round.number, round.date, playerId, exportPlayerName(playerId), attendanceMeta(status).title, status
+    ]));
+    return {
+      filename: `gpfc-presencas-${SEASON}-${exportDateStamp()}.csv`,
+      headers: ["rodada_id", "rodada", "data", "atleta_id", "atleta", "situacao", "codigo_situacao"],
+      rows
+    };
+  }
+  const rows = data.goalEvents.map(event => {
+    const game = data.games.find(item => item.id === event.gameId);
+    const round = getRoundById(game?.roundId);
+    return [
+      event.id, round?.number || "", game?.number || "", event.number, event.team,
+      event.scorerId || "", exportPlayerName(event.scorerId),
+      event.assisterId || "", event.assisterId ? exportPlayerName(event.assisterId) : "Sem assistência",
+      event.ownGoal ? "sim" : "nao"
+    ];
+  });
+  return {
+    filename: `gpfc-gols-assistencias-${SEASON}-${exportDateStamp()}.csv`,
+    headers: ["evento_id", "rodada", "jogo", "numero_evento", "time", "autor_id", "autor", "assistente_id", "assistente", "gol_contra"],
+    rows
+  };
+}
+function renderExportBackupSummary() {
+  const summary = document.querySelector("#export-backup-summary");
+  if (!summary) return;
+  summary.textContent = `${data.players.length} atletas · ${data.rounds.length} rodadas · ${data.games.length} confrontos · ${data.goalEvents.length} gols registrados`;
+}
+function exportSelectedCsv() {
+  if (!requireAdmin()) return;
+  const type = document.querySelector("#export-data-type")?.value || "players";
+  const dataset = exportDataset(type);
+  downloadBackupFile(csvDocument(dataset.headers, dataset.rows), dataset.filename, "text/csv;charset=utf-8");
+  toast(`CSV gerado com ${dataset.rows.length} registros.`);
+}
+function exportCompleteBackup() {
+  if (!requireAdmin()) return;
+  const backup = {
+    metadata: { project: "G.P.F.C - Galera da Pelada", season: SEASON, generatedAt: new Date().toISOString(), version: 1 },
+    ...data
+  };
+  downloadBackupFile(JSON.stringify(backup, null, 2), `gpfc-backup-completo-${SEASON}-${exportDateStamp()}.json`, "application/json;charset=utf-8");
+  toast("Backup completo gerado com sucesso.");
+}
 function renderAdjustmentForm() {
   const select = document.querySelector("#adjustment-player");
   const selectedId = select.value;
@@ -1607,6 +1715,7 @@ function renderAll() {
   renderAdminMedia();
   renderAdminHallOfFame();
   renderAdminAuditLogs();
+  renderExportBackupSummary();
   updateGameFormState();
 }
 const VIEW_PAGE_TITLES = {
@@ -3283,6 +3392,8 @@ document.querySelector("#refresh-audit-log")?.addEventListener("click", async ev
   event.currentTarget.disabled = false;
   toast("Histórico de atividades atualizado.");
 });
+document.querySelector("#export-csv")?.addEventListener("click", exportSelectedCsv);
+document.querySelector("#export-full-backup")?.addEventListener("click", exportCompleteBackup);
 
 document.querySelector("#game-date").value = new Date().toISOString().slice(0, 10);
 (async function initialiseApp() {

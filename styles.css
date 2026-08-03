@@ -6230,3 +6230,51 @@ footer {
     gap: 9px;
   }
 }
+
+/* Backup e exportação */
+.export-admin-card {
+  grid-column: 1 / -1;
+}
+.export-toolbar {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto auto;
+  align-items: end;
+  gap: 12px;
+}
+.export-toolbar .button {
+  min-height: 42px;
+}
+.export-backup-summary {
+  margin: 18px 0 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(44, 190, 255, 0.24);
+  background: rgba(3, 29, 58, 0.62);
+  color: #8de3ff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.export-backup-note {
+  margin: 9px 0 0;
+  color: #7898b4;
+  font-size: 9px;
+}
+@media (max-width: 760px) {
+  .export-toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
+  .export-toolbar label {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 520px) {
+  .export-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .export-toolbar label {
+    grid-column: auto;
+  }
+  .export-toolbar .button {
+    width: 100%;
+  }
+}
