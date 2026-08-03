@@ -45,6 +45,10 @@ let goalEventCounter = 0;
 let manualScoreMode = false;
 let attendanceFilter = "all";
 let attendanceDirty = false;
+const PUBLIC_ATTENDANCE_PLAYER_KEY = "gpfc-public-attendance-player";
+let publicAttendancePlayerId = localStorage.getItem(PUBLIC_ATTENDANCE_PLAYER_KEY) || "";
+let publicAttendanceChoice = "";
+let publicAttendanceRoundId = "";
 
 function number(value) { return Number(value || 0); }
 function initials(player) {
@@ -1050,6 +1054,77 @@ function renderHomeNotices() {
     return `<article class="notice-card notice-${escapeHtml(notice.category)}${notice.pinned ? " is-pinned" : ""}"><header><span class="notice-category"><b>${info.icon}</b>${info.label}</span>${notice.pinned ? `<span class="notice-pinned">FIXADO</span>` : ""}</header><h3>${escapeHtml(notice.title)}</h3><p>${noticeMessageMarkup(notice.message)}</p><footer><span>Publicado em ${formatDate(String(notice.publishedAt).slice(0, 10))}</span>${notice.expiresOn ? `<span>Até ${formatDate(notice.expiresOn)}</span>` : ""}</footer></article>`;
   }).join("") : `<div class="empty-state">Nenhum aviso importante no momento. Acompanhe aqui as novidades da Galera da Pelada.</div>`;
 }
+function getPublicAttendanceRound() {
+  return [...data.rounds]
+    .filter(round => round.status === "draft")
+    .sort((a, b) => b.number - a.number)[0] || null;
+}
+function publicAttendanceStatusInfo(status) {
+  return {
+    present: { icon: "●", label: "Vou participar", shortLabel: "Confirmado" },
+    unknown: { icon: "?", label: "Estou em dúvida", shortLabel: "Em dúvida" },
+    absent: { icon: "×", label: "Não vou", shortLabel: "Não vai" }
+  }[status] || null;
+}
+function renderPublicAttendanceConfirmation() {
+  const container = document.querySelector("#public-attendance-panel");
+  if (!container) return;
+  const round = getPublicAttendanceRound();
+  if (!round) {
+    container.innerHTML = `<div class="empty-state public-attendance-empty">A confirmação será aberta quando a próxima rodada for criada.</div>`;
+    return;
+  }
+  if (!attendanceAvailable) {
+    container.innerHTML = `<div class="empty-state public-attendance-empty">A lista de presença está sendo preparada.</div>`;
+    return;
+  }
+
+  const attendance = data.attendance[round.id] || {};
+  const players = [...data.players].sort((a, b) => displayName(a).localeCompare(displayName(b), "pt-BR"));
+  if (publicAttendanceRoundId !== round.id) {
+    publicAttendanceRoundId = round.id;
+    publicAttendanceChoice = publicAttendancePlayerId ? attendance[publicAttendancePlayerId] || "" : "";
+  }
+  if (!players.some(player => player.id === publicAttendancePlayerId)) {
+    publicAttendancePlayerId = "";
+    publicAttendanceChoice = "";
+  }
+  const selectedPlayer = players.find(player => player.id === publicAttendancePlayerId);
+  if (selectedPlayer && !publicAttendanceChoice) publicAttendanceChoice = attendance[selectedPlayer.id] || "";
+  const currentInfo = selectedPlayer ? publicAttendanceStatusInfo(attendance[selectedPlayer.id]) : null;
+  const totals = ["present", "unknown", "absent"].map(status => ({
+    status,
+    total: players.filter(player => attendance[player.id] === status).length,
+    info: publicAttendanceStatusInfo(status)
+  }));
+  const choiceButtons = ["present", "unknown", "absent"].map(status => {
+    const info = publicAttendanceStatusInfo(status);
+    const selected = publicAttendanceChoice === status;
+    return `<button class="public-attendance-choice choice-${status}${selected ? " is-selected" : ""}" type="button" data-public-attendance-status="${status}" aria-pressed="${selected}"><b>${info.icon}</b><span>${info.label}</span></button>`;
+  }).join("");
+
+  container.innerHTML = `<article class="public-attendance-card${round.attendanceClosed ? " is-closed" : ""}">
+    <div class="public-attendance-summary">
+      <div><span>${roundLabel(round)}</span><strong>${formatDate(round.date)}</strong><small>${escapeHtml(round.place || DEFAULT_VENUE_NAME)} · 17h às 19h</small></div>
+      <div class="public-attendance-totals">${totals.map(item => `<span class="total-${item.status}"><b>${item.total}</b>${item.info.shortLabel}</span>`).join("")}</div>
+    </div>
+    ${round.attendanceClosed
+      ? `<div class="public-attendance-closed"><b>Lista encerrada</b><span>A diretoria fechou as confirmações desta rodada.</span></div>`
+      : `<form id="public-attendance-form" class="public-attendance-form">
+          <label class="public-player-select">Seu nome
+            <select id="public-attendance-player" required>
+              <option value="">Selecione seu nome na lista</option>
+              ${players.map(player => `<option value="${player.id}"${player.id === publicAttendancePlayerId ? " selected" : ""}>${escapeHtml(displayName(player))} · camisa ${escapeHtml(shirtNumber(player))}</option>`).join("")}
+            </select>
+          </label>
+          <div class="public-attendance-choices" role="group" aria-label="Escolha sua resposta">${choiceButtons}</div>
+          <div class="public-attendance-submit">
+            <p>${currentInfo ? `Resposta atual: <strong>${currentInfo.shortLabel}</strong>. Você pode alterá-la.` : "Escolha uma resposta e confirme."}</p>
+            <button class="button primary" type="submit"${!selectedPlayer || !publicAttendanceChoice ? " disabled" : ""}>Confirmar presença <span>→</span></button>
+          </div>
+        </form>`}
+  </article>`;
+}
 function resetNoticeForm() {
   const form = document.querySelector("#notice-form");
   if (!form) return;
@@ -1224,6 +1299,7 @@ function renderAll() {
   renderHomeHighlights();
   renderHomeClips();
   renderHomeNotices();
+  renderPublicAttendanceConfirmation();
   renderRanking();
   renderPublicRounds();
   renderPlayers(document.querySelector("#player-search")?.value || "");
@@ -2695,4 +2771,59 @@ mobileMenuToggle?.addEventListener("click", () => {
 
 mobileMainNav?.addEventListener("click", event => {
   if (event.target.closest("button")) setMobileMenu(false);
+});
+
+document.querySelector("#public-attendance-panel")?.addEventListener("change", event => {
+  if (event.target.id !== "public-attendance-player") return;
+  publicAttendancePlayerId = event.target.value;
+  const round = getPublicAttendanceRound();
+  publicAttendanceChoice = round && publicAttendancePlayerId
+    ? data.attendance[round.id]?.[publicAttendancePlayerId] || ""
+    : "";
+  renderPublicAttendanceConfirmation();
+});
+
+document.querySelector("#public-attendance-panel")?.addEventListener("click", event => {
+  const button = event.target.closest("[data-public-attendance-status]");
+  if (!button) return;
+  if (!publicAttendancePlayerId) {
+    toast("Selecione seu nome antes de escolher a resposta.");
+    return;
+  }
+  publicAttendanceChoice = button.dataset.publicAttendanceStatus;
+  renderPublicAttendanceConfirmation();
+});
+
+document.querySelector("#public-attendance-panel")?.addEventListener("submit", async event => {
+  if (event.target.id !== "public-attendance-form") return;
+  event.preventDefault();
+  const round = getPublicAttendanceRound();
+  if (!round || round.attendanceClosed) {
+    toast("A confirmação desta rodada está fechada.");
+    return;
+  }
+  if (!publicAttendancePlayerId || !publicAttendanceChoice) {
+    toast("Escolha seu nome e uma resposta.");
+    return;
+  }
+  const submit = event.target.querySelector('button[type="submit"]');
+  submit.disabled = true;
+  submit.textContent = "Salvando...";
+  const { error } = await supabaseClient.rpc("confirm_round_attendance", {
+    p_round_id: round.id,
+    p_player_id: publicAttendancePlayerId,
+    p_status: publicAttendanceChoice
+  });
+  if (error) {
+    renderPublicAttendanceConfirmation();
+    const migrationHint = /function|schema cache/i.test(error.message) ? " Execute a migração 017 no Supabase." : "";
+    toast(`Não foi possível confirmar: ${error.message}${migrationHint}`);
+    return;
+  }
+  localStorage.setItem(PUBLIC_ATTENDANCE_PLAYER_KEY, publicAttendancePlayerId);
+  data.attendance[round.id] ||= {};
+  data.attendance[round.id][publicAttendancePlayerId] = publicAttendanceChoice;
+  renderAll();
+  const player = data.players.find(item => item.id === publicAttendancePlayerId);
+  toast(`Presença de ${displayName(player)} atualizada com sucesso.`);
 });
