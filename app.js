@@ -1395,6 +1395,28 @@ function publicAttendanceStatusInfo(status) {
     absent: { icon: "×", label: "Não vou", shortLabel: "Não vai" }
   }[status] || null;
 }
+function publicAttendanceRosterMarkup(attendance, players) {
+  const groupLabels = { present: "Confirmados", unknown: "Em dúvida", absent: "Não vão" };
+  const groups = ["present", "unknown", "absent"].map(status => {
+    const info = publicAttendanceStatusInfo(status);
+    const groupPlayers = players.filter(player => attendance[player.id] === status);
+    const names = groupPlayers.length
+      ? `<ul>${groupPlayers.map(player => `<li>${escapeHtml(displayName(player))}</li>`).join("")}</ul>`
+      : `<p>Nenhum atleta nesta opção.</p>`;
+    return `<section class="public-response-group response-${status}">
+      <header><span aria-hidden="true">${info.icon}</span><strong>${groupLabels[status]}</strong><small>${groupPlayers.length}</small></header>
+      ${names}
+    </section>`;
+  }).join("");
+
+  return `<section class="public-attendance-roster" aria-labelledby="public-attendance-roster-title">
+    <div class="public-attendance-roster-heading">
+      <div><span>LISTA ATUALIZADA</span><h3 id="public-attendance-roster-title">Quem já respondeu</h3></div>
+      <small>As confirmações aparecem aqui automaticamente.</small>
+    </div>
+    <div class="public-attendance-roster-grid">${groups}</div>
+  </section>`;
+}
 function renderPublicAttendanceConfirmation() {
   const container = document.querySelector("#public-attendance-panel");
   if (!container) return;
@@ -1452,6 +1474,7 @@ function renderPublicAttendanceConfirmation() {
             <button class="button primary" type="submit"${!selectedPlayer || !publicAttendanceChoice ? " disabled" : ""}>Confirmar presença <span>→</span></button>
           </div>
         </form>`}
+    ${publicAttendanceRosterMarkup(attendance, players)}
   </article>`;
 }
 function renderMediaGallery() {
