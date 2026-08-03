@@ -403,8 +403,27 @@
             <div id="audit-log-list" class="audit-log-list"></div>
           </article>
 
+          <article class="admin-card export-admin-card">
+            <div class="admin-card-heading"><span class="step">10</span><div><h2>Backup e exportação</h2><p>Baixe os dados da temporada para guardar uma cópia segura ou abrir no Excel.</p></div></div>
+            <div class="export-toolbar">
+              <label>Conteúdo do CSV
+                <select id="export-data-type">
+                  <option value="players">Atletas e estatísticas</option>
+                  <option value="rounds">Rodadas</option>
+                  <option value="games">Confrontos</option>
+                  <option value="attendance">Presença</option>
+                  <option value="goals">Gols e assistências</option>
+                </select>
+              </label>
+              <button id="export-csv" class="button primary" type="button">Exportar CSV <span>↓</span></button>
+              <button id="export-full-backup" class="button secondary" type="button">Backup completo (.json)</button>
+            </div>
+            <p id="export-backup-summary" class="export-backup-summary"></p>
+            <p class="export-backup-note">Os arquivos são gerados somente no seu navegador. Nenhuma informação é enviada para outro serviço.</p>
+          </article>
+
           <article class="admin-card adjustment-card">
-            <div class="admin-card-heading"><span class="step">04</span><div><h2>Saldo histórico</h2><p>Informe o que já aconteceu em 2026 antes de usar o site nas rodadas de sábado.</p></div></div>
+            <div class="admin-card-heading"><span class="step">11</span><div><h2>Saldo histórico</h2><p>Informe o que já aconteceu em 2026 antes de usar o site nas rodadas de sábado.</p></div></div>
             <form id="adjustment-form" class="form-stack">
               <label>Atleta<select id="adjustment-player" required></select></label>
               <div class="adjustment-fields">
