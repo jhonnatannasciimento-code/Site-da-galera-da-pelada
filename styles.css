@@ -2253,6 +2253,49 @@ footer {
   width: min(100%, 700px);
   margin: 28px 0;
 }
+.player-edit-form {
+  gap: 12px;
+}
+.player-edit-section {
+  display: grid;
+  gap: 11px;
+  padding: 14px;
+  border: 1px solid rgba(80, 190, 255, 0.2);
+  background: rgba(2, 20, 46, 0.48);
+}
+.player-edit-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.player-edit-section-heading small {
+  color: #6f91b2;
+  font-size: 9px;
+  white-space: nowrap;
+}
+.player-edit-photo-section .photo-upload {
+  margin: 0;
+}
+.player-cropper {
+  margin-top: 2px;
+}
+.player-photo-control {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.photo-format-help {
+  margin: 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.35;
+}
+.player-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+}
 .form-subtitle {
   display: block;
   color: #dff6ff;
@@ -2286,6 +2329,64 @@ footer {
   }
   .edit-stats-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .player-edit-card {
+    width: calc(100% - 20px);
+    margin: 10px auto;
+    padding: 19px 14px 14px;
+  }
+  .player-edit-card > p:not(.eyebrow) {
+    margin-bottom: 10px;
+    font-size: 11px;
+  }
+  .player-edit-form {
+    gap: 9px;
+  }
+  .player-edit-section {
+    gap: 9px;
+    padding: 11px;
+  }
+  .player-edit-section .form-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .player-edit-section label {
+    gap: 4px;
+    font-size: 10px;
+  }
+  .player-edit-section input,
+  .player-edit-section select {
+    min-height: 40px;
+  }
+  .player-edit-photo-section .photo-upload {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 11px;
+  }
+  .player-edit-photo-section .photo-preview {
+    width: 58px;
+    height: 58px;
+  }
+  .player-edit-photo-section .upload-control {
+    min-height: 38px;
+  }
+  .player-cropper {
+    padding: 10px;
+  }
+  .player-edit-actions {
+    position: sticky;
+    z-index: 3;
+    bottom: 0;
+    margin: 0 -14px -14px;
+    padding: 10px 14px;
+    border-top: 1px solid rgba(80, 190, 255, 0.2);
+    background: #06162f;
+  }
+  .player-edit-actions .button {
+    flex: 1;
+  }
+  .upload-control::after {
+    display: none;
   }
 }
 .card-games {

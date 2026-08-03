@@ -26,6 +26,7 @@ let pendingPhotoFile = null;
 let pendingEditPhotoFile = null;
 let pendingDirectorPhotoFile = null;
 let directorCropState = null;
+let playerCropState = null;
 let currentUser = null;
 let isAdmin = false;
 let editingGameId = null;
@@ -1360,7 +1361,7 @@ function requireAdmin() { if (isAdmin) return true; openLoginModal(); return fal
 function validatePlayerPhoto(file, input) {
   const allowedImageTypes = ["image/jpeg", "image/png", "image/webp"];
   if (!allowedImageTypes.includes(file.type)) { toast("Envie uma imagem JPG, PNG ou WEBP."); input.value = ""; return false; }
-  if (file.size > 2_500_000) { toast("Escolha uma foto de até 2,5 MB."); input.value = ""; return false; }
+  if (file.size > 5_000_000) { toast("Escolha uma foto de até 5 MB."); input.value = ""; return false; }
   return true;
 }
 async function uploadPlayerPhoto(playerId, file) {
@@ -1432,6 +1433,64 @@ async function croppedDirectorPhoto() {
   const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.9));
   if (!blob) throw new Error("Não foi possível preparar o recorte da foto.");
   return new File([blob], "diretor.jpg", { type: "image/jpeg" });
+}
+function resetPlayerCropper() {
+  if (playerCropState?.objectUrl) URL.revokeObjectURL(playerCropState.objectUrl);
+  playerCropState = null;
+  const cropper = document.querySelector("#player-cropper");
+  const image = document.querySelector("#player-crop-image");
+  const zoom = document.querySelector("#player-crop-zoom");
+  if (cropper) cropper.hidden = true;
+  if (image) image.removeAttribute("src");
+  if (zoom) zoom.value = "1";
+}
+function updatePlayerCropper() {
+  if (!playerCropState) return;
+  const state = playerCropState;
+  const scale = state.baseScale * state.zoom;
+  const width = state.image.naturalWidth * scale;
+  const height = state.image.naturalHeight * scale;
+  state.x = clamp(state.x, DIRECTOR_CROP_SIZE - width, 0);
+  state.y = clamp(state.y, DIRECTOR_CROP_SIZE - height, 0);
+  const preview = document.querySelector("#player-crop-image");
+  preview.style.width = `${width}px`;
+  preview.style.height = `${height}px`;
+  preview.style.left = `${state.x}px`;
+  preview.style.top = `${state.y}px`;
+  document.querySelector("#player-crop-zoom").value = String(state.zoom);
+}
+function startPlayerCropper(file) {
+  resetPlayerCropper();
+  const objectUrl = URL.createObjectURL(file);
+  const image = new Image();
+  image.onload = () => {
+    const baseScale = Math.max(DIRECTOR_CROP_SIZE / image.naturalWidth, DIRECTOR_CROP_SIZE / image.naturalHeight);
+    const width = image.naturalWidth * baseScale;
+    const height = image.naturalHeight * baseScale;
+    playerCropState = { file, image, objectUrl, baseScale, zoom: 1, x: (DIRECTOR_CROP_SIZE - width) / 2, y: (DIRECTOR_CROP_SIZE - height) / 2, pointerId: null };
+    document.querySelector("#player-crop-image").src = objectUrl;
+    document.querySelector("#player-cropper").hidden = false;
+    updatePlayerCropper();
+  };
+  image.onerror = () => {
+    URL.revokeObjectURL(objectUrl);
+    toast("Não foi possível abrir esta imagem.");
+  };
+  image.src = objectUrl;
+}
+async function croppedPlayerPhoto() {
+  if (!playerCropState) return pendingEditPhotoFile;
+  const state = playerCropState;
+  const scale = state.baseScale * state.zoom;
+  const sourceSize = DIRECTOR_CROP_SIZE / scale;
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 512;
+  const context = canvas.getContext("2d");
+  context.drawImage(state.image, -state.x / scale, -state.y / scale, sourceSize, sourceSize, 0, 0, 512, 512);
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.9));
+  if (!blob) throw new Error("Não foi possível preparar o recorte da foto.");
+  return new File([blob], "atleta.jpg", { type: "image/jpeg" });
 }
 function previewPhoto(element, player, source = player?.photo) {
   element.innerHTML = source ? `<img src="${source}" alt="Prévia da foto de ${escapeHtml(displayName(player))}" />` : initials(player);
@@ -1525,6 +1584,7 @@ function openGameEditor(gameId) {
 function closePlayerEditModal() {
   document.querySelector("#player-edit-modal").hidden = true;
   pendingEditPhotoFile = null;
+  resetPlayerCropper();
 }
 function closeDirectorEditModal() {
   document.querySelector("#director-edit-modal").hidden = true;
@@ -1559,6 +1619,7 @@ function openPlayerEdit(playerId) {
   ADJUSTMENT_FIELDS.forEach(field => { document.querySelector(`#edit-player-${field}`).value = number(stats[field]); });
   previewPhoto(document.querySelector("#edit-photo-preview"), player);
   pendingEditPhotoFile = null;
+  resetPlayerCropper();
   document.querySelector("#edit-player-photo").value = "";
   document.querySelector("#player-edit-modal").hidden = false;
 }
@@ -1709,10 +1770,41 @@ document.querySelector("#edit-player-photo").addEventListener("change", event =>
   const file = event.target.files[0];
   if (!file || !validatePlayerPhoto(file, event.target)) return;
   pendingEditPhotoFile = file;
-  const player = data.players.find(item => item.id === document.querySelector("#edit-player-id").value);
-  const reader = new FileReader();
-  reader.onload = () => previewPhoto(document.querySelector("#edit-photo-preview"), player, reader.result);
-  reader.readAsDataURL(file);
+  startPlayerCropper(file);
+});
+document.querySelector("#player-crop-zoom").addEventListener("input", event => {
+  if (!playerCropState) return;
+  const state = playerCropState;
+  const previousScale = state.baseScale * state.zoom;
+  const sourceCenterX = (DIRECTOR_CROP_SIZE / 2 - state.x) / previousScale;
+  const sourceCenterY = (DIRECTOR_CROP_SIZE / 2 - state.y) / previousScale;
+  state.zoom = number(event.target.value) || 1;
+  const nextScale = state.baseScale * state.zoom;
+  state.x = DIRECTOR_CROP_SIZE / 2 - sourceCenterX * nextScale;
+  state.y = DIRECTOR_CROP_SIZE / 2 - sourceCenterY * nextScale;
+  updatePlayerCropper();
+});
+document.querySelector("#player-crop-area").addEventListener("pointerdown", event => {
+  if (!playerCropState) return;
+  event.preventDefault();
+  playerCropState.pointerId = event.pointerId;
+  playerCropState.dragStartX = event.clientX;
+  playerCropState.dragStartY = event.clientY;
+  playerCropState.initialX = playerCropState.x;
+  playerCropState.initialY = playerCropState.y;
+  event.currentTarget.setPointerCapture(event.pointerId);
+});
+document.querySelector("#player-crop-area").addEventListener("pointermove", event => {
+  const state = playerCropState;
+  if (!state || state.pointerId !== event.pointerId) return;
+  state.x = state.initialX + event.clientX - state.dragStartX;
+  state.y = state.initialY + event.clientY - state.dragStartY;
+  updatePlayerCropper();
+});
+document.querySelector("#player-crop-area").addEventListener("pointerup", event => {
+  if (!playerCropState || playerCropState.pointerId !== event.pointerId) return;
+  playerCropState.pointerId = null;
+  event.currentTarget.releasePointerCapture(event.pointerId);
 });
 document.querySelector("#edit-director-photo").addEventListener("change", event => {
   const file = event.target.files[0];
@@ -2507,7 +2599,7 @@ document.querySelector("#player-edit-form").addEventListener("submit", async eve
   if (wantedGames < getRecordedGameCount(playerId)) { toast("Esse total de jogos é menor do que o já registrado nas rodadas. Edite o confronto para reduzir esse número."); return; }
   let photoUrl = player.photo;
   try {
-    if (pendingEditPhotoFile) photoUrl = await uploadPlayerPhoto(playerId, pendingEditPhotoFile);
+    if (pendingEditPhotoFile) photoUrl = await uploadPlayerPhoto(playerId, await croppedPlayerPhoto());
   } catch (error) {
     toast(`Não foi possível enviar a foto: ${error.message}`);
     return;
