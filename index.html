@@ -83,6 +83,7 @@
         <button class="nav-link" data-view-target="rankings" type="button">Rankings</button>
         <button class="nav-link" data-view-target="rodadas" type="button">Rodadas</button>
         <button class="nav-link" data-view-target="atletas" type="button">Atletas</button>
+        <button class="nav-link" data-view-target="midias" type="button">Mídias</button>
         <button id="admin-access-button" class="nav-link" type="button"><span id="admin-nav-label">Entrar</span></button>
       </nav>
       <div class="season-chip"><span></span> Temporada 2026</div>
@@ -213,6 +214,24 @@
         <div id="athletes-grid" class="athletes-grid"></div>
       </section>
 
+      <section id="midias" class="view section-wrap media-view" aria-labelledby="media-title">
+        <div class="page-heading media-page-heading">
+          <div><p class="eyebrow">10 ANOS DE HISTÓRIA</p><h2 id="media-title">Mídias G.P.F.C</h2><p>Fotos, melhores lances, premiações e momentos marcantes da Galera da Pelada.</p></div>
+          <a class="button secondary media-instagram-button" href="https://www.instagram.com/galeradapelada2016/" target="_blank" rel="noopener noreferrer">Instagram oficial <span>↗</span></a>
+        </div>
+        <div id="media-filters" class="media-filters" aria-label="Filtrar galeria">
+          <div class="media-type-filters" role="group" aria-label="Tipo de mídia">
+            <button class="media-filter active" type="button" data-media-type="all">Todas</button>
+            <button class="media-filter" type="button" data-media-type="photo">Fotos</button>
+            <button class="media-filter" type="button" data-media-type="video">Vídeos</button>
+          </div>
+          <label>Ano<select id="media-year-filter"><option value="all">Todos</option></select></label>
+          <label>Categoria<select id="media-category-filter"><option value="all">Todas</option><option value="rodada">Rodadas</option><option value="premiacao">Premiações</option><option value="confraternizacao">Confraternizações</option><option value="historia">Nossa história</option><option value="lance">Melhores lances</option><option value="outro">Outros</option></select></label>
+        </div>
+        <div id="media-gallery-summary" class="media-gallery-summary" aria-live="polite"></div>
+        <div id="media-gallery" class="media-gallery"></div>
+      </section>
+
       <section id="admin" class="view section-wrap" aria-labelledby="admin-title">
         <div class="page-heading">
           <div><p class="eyebrow">ÁREA DO ORGANIZADOR</p><h2 id="admin-title">Central da rodada</h2><p>Cadastre atletas, fotos e estatísticas oficiais da temporada.</p></div>
@@ -306,6 +325,33 @@
               <div class="notice-form-actions"><button id="save-notice" class="button primary" type="submit">Publicar aviso <span>→</span></button><button id="cancel-notice-edit" class="button secondary" type="button" hidden>Cancelar edição</button></div>
             </form>
             <div id="notices-admin-list" class="notices-admin-list"></div>
+          </article>
+
+          <article class="admin-card media-admin-card">
+            <div class="admin-card-heading"><span class="step">07</span><div><h2>Galeria de mídias</h2><p>Publique fotos da história do G.P.F.C ou links de vídeos já postados nas redes sociais.</p></div></div>
+            <form id="media-form" class="form-stack">
+              <input id="media-id" type="hidden" />
+              <div class="form-row">
+                <label>Tipo de mídia<select id="media-type"><option value="photo">Foto</option><option value="video">Vídeo externo</option></select></label>
+                <label>Ano<input id="media-year" type="number" min="2016" max="2100" value="2026" required inputmode="numeric" /></label>
+              </div>
+              <label>Título<input id="media-title-input" required maxlength="100" placeholder="Ex.: Premiação dos melhores de 2025" /></label>
+              <label>Descrição<textarea id="media-description" maxlength="600" rows="3" placeholder="Conte um pouco sobre este momento."></textarea></label>
+              <div class="form-row">
+                <label>Categoria<select id="media-category"><option value="rodada">Rodada</option><option value="premiacao">Premiação</option><option value="confraternizacao">Confraternização</option><option value="historia">Nossa história</option><option value="outro">Outro</option></select></label>
+                <label>Rodada relacionada<select id="media-round"><option value="">Nenhuma rodada</option></select></label>
+              </div>
+              <label id="media-photo-field" class="media-file-field">Escolher foto <input id="media-photo" type="file" accept=".jpg,.jpeg,.png,.webp,.avif,image/jpeg,image/png,image/webp,image/avif" /><small>JPG, JPEG, PNG, WebP ou AVIF · máximo 5 MB.</small></label>
+              <label id="media-url-field" hidden>Link do vídeo<input id="media-url" type="url" inputmode="url" placeholder="https://www.instagram.com/reel/..." /><small>Use o link do Reel, YouTube ou outra publicação em HTTPS.</small></label>
+              <fieldset class="media-player-field">
+                <legend>Atletas relacionados</legend>
+                <div id="media-player-options" class="media-player-options" aria-describedby="media-players-help"></div>
+                <small id="media-players-help">Opcional. Marque todos os atletas relacionados à publicação.</small>
+              </fieldset>
+              <label class="media-featured-option"><input id="media-featured" type="checkbox" /> Destacar esta publicação na galeria</label>
+              <div class="notice-form-actions"><button id="save-media" class="button primary" type="submit">Publicar mídia <span>→</span></button><button id="cancel-media-edit" class="button secondary" type="button" hidden>Cancelar edição</button></div>
+            </form>
+            <div id="media-admin-list" class="media-admin-list"></div>
           </article>
 
           <article class="admin-card adjustment-card">
