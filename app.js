@@ -71,7 +71,7 @@ function directorPhotoMarkup(director, extraClass = "") {
   const name = director?.name || "Diretor";
   return `<div class="director-avatar ${extraClass}">${director?.photo
     ? `<img src="${escapeHtml(director.photo)}" alt="Foto de ${escapeHtml(name)}" />`
-    : `<img src="assets/escudo-moderno-gpfc.png" alt="Escudo do G.P.F.C" />`}</div>`;
+    : `<img src="assets/escudo-moderno-gpfc.webp" alt="Escudo do G.P.F.C" />`}</div>`;
 }
 function directorList() {
   return (data.directors.length ? data.directors : DEFAULT_DIRECTORS).slice().sort((a, b) => a.slot - b.slot);
@@ -1603,7 +1603,7 @@ function openDirectorEdit(directorId) {
   resetDirectorCropper();
   document.querySelector("#edit-director-photo-preview").innerHTML = director.photo
     ? `<img src="${escapeHtml(director.photo)}" alt="Prévia da foto de ${escapeHtml(director.name)}" />`
-    : `<img src="assets/escudo-moderno-gpfc.png" alt="Escudo do G.P.F.C" />`;
+    : `<img src="assets/escudo-moderno-gpfc.webp" alt="Escudo do G.P.F.C" />`;
   pendingDirectorPhotoFile = null;
   document.querySelector("#director-edit-modal").hidden = false;
 }

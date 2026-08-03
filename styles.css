@@ -1331,7 +1331,7 @@ body {
   inset: 0;
   pointer-events: none;
   opacity: 0.045;
-  background: url("assets/escudo-moderno-gpfc.png") 78% 53% /
+  background: url("assets/escudo-moderno-gpfc.webp") 78% 53% /
     clamp(430px, 54vw, 790px) no-repeat;
   filter: saturate(1.14) contrast(1.08);
   mix-blend-mode: screen;
@@ -1394,7 +1394,7 @@ footer {
   inset: 0;
   background:
     linear-gradient(90deg, rgba(2, 7, 19, 0.55) 12%, transparent 68%),
-    url("assets/escudo-moderno-gpfc.png") 78% center / 650px no-repeat;
+    url("assets/escudo-moderno-gpfc.webp") 78% center / 650px no-repeat;
   opacity: 0.08;
   mix-blend-mode: screen;
   pointer-events: none;
