@@ -84,6 +84,7 @@
         <button class="nav-link" data-view-target="rodadas" type="button">Rodadas</button>
         <button class="nav-link" data-view-target="atletas" type="button">Atletas</button>
         <button class="nav-link" data-view-target="midias" type="button">Mídias</button>
+        <button class="nav-link" data-view-target="hall-da-fama" type="button">Hall da Fama</button>
         <button id="admin-access-button" class="nav-link" type="button"><span id="admin-nav-label">Entrar</span></button>
       </nav>
       <div class="season-chip"><span></span> Temporada 2026</div>
@@ -232,6 +233,26 @@
         <div id="media-gallery" class="media-gallery"></div>
       </section>
 
+      <section id="hall-da-fama" class="view section-wrap hall-view" aria-labelledby="hall-title">
+        <div class="page-heading hall-page-heading">
+          <div><p class="eyebrow">DESDE 2016</p><h2 id="hall-title">Hall da Fama G.P.F.C</h2><p>O museu dos campeões anuais da Galera da Pelada.</p></div>
+          <div id="hall-summary" class="hall-summary" aria-live="polite"></div>
+        </div>
+        <div id="hall-leaders" class="hall-leaders"></div>
+        <div id="hall-filters" class="hall-filters" aria-label="Filtrar Hall da Fama">
+          <label>Ano<select id="hall-year-filter"><option value="all">Todos</option></select></label>
+          <div class="hall-category-filters" role="group" aria-label="Categoria da premiação">
+            <button class="hall-filter active" type="button" data-hall-category="all">Todas</button>
+            <button class="hall-filter" type="button" data-hall-category="artilheiro">Artilheiro</button>
+            <button class="hall-filter" type="button" data-hall-category="garcom">Garçom</button>
+            <button class="hall-filter" type="button" data-hall-category="craque">Craque</button>
+            <button class="hall-filter" type="button" data-hall-category="xerife">Xerife</button>
+            <button class="hall-filter" type="button" data-hall-category="paredao">Paredão</button>
+          </div>
+        </div>
+        <div id="hall-awards-grid" class="hall-awards-grid"></div>
+      </section>
+
       <section id="admin" class="view section-wrap" aria-labelledby="admin-title">
         <div class="page-heading">
           <div><p class="eyebrow">ÁREA DO ORGANIZADOR</p><h2 id="admin-title">Central da rodada</h2><p>Cadastre atletas, fotos e estatísticas oficiais da temporada.</p></div>
@@ -352,6 +373,23 @@
               <div class="notice-form-actions"><button id="save-media" class="button primary" type="submit">Publicar mídia <span>→</span></button><button id="cancel-media-edit" class="button secondary" type="button" hidden>Cancelar edição</button></div>
             </form>
             <div id="media-admin-list" class="media-admin-list"></div>
+          </article>
+
+          <article class="admin-card hall-admin-card">
+            <div class="admin-card-heading"><span class="step">08</span><div><h2>Hall da Fama</h2><p>Cadastre os vencedores anuais desde 2016. Empates podem ser registrados separadamente.</p></div></div>
+            <form id="hall-form" class="form-stack">
+              <input id="hall-award-id" type="hidden" />
+              <div class="form-row">
+                <label>Ano<input id="hall-award-year" type="number" min="2016" max="2100" value="2025" required inputmode="numeric" /></label>
+                <label>Premiação<select id="hall-award-category"><option value="artilheiro">Artilheiro do ano</option><option value="garcom">Garçom do ano</option><option value="craque">Craque do ano</option><option value="xerife">Xerife do ano</option><option value="paredao">Paredão do ano</option></select></label>
+              </div>
+              <label>Atleta atual (opcional)<select id="hall-award-player"><option value="">Vencedor antigo ou fora do elenco</option></select><small>Ao escolher um atleta, o nome e a foto atuais podem ser aproveitados.</small></label>
+              <label>Nome do vencedor<input id="hall-award-name" required maxlength="80" placeholder="Ex.: Ricardo" /></label>
+              <label>Observação (opcional)<textarea id="hall-award-note" maxlength="300" rows="2" placeholder="Ex.: 42 gols na temporada."></textarea></label>
+              <label class="media-file-field">Foto do campeão (opcional)<input id="hall-award-photo" type="file" accept=".jpg,.jpeg,.png,.webp,.avif,image/jpeg,image/png,image/webp,image/avif" /><small>JPG, JPEG, PNG, WebP ou AVIF · máximo 5 MB.</small></label>
+              <div class="notice-form-actions"><button id="save-hall-award" class="button primary" type="submit">Adicionar campeão <span>→</span></button><button id="cancel-hall-edit" class="button secondary" type="button" hidden>Cancelar edição</button></div>
+            </form>
+            <div id="hall-admin-list" class="hall-admin-list"></div>
           </article>
 
           <article class="admin-card adjustment-card">

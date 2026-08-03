@@ -5841,3 +5841,286 @@ footer {
     grid-template-columns: 1fr;
   }
 }
+
+/* Hall da Fama */
+.hall-page-heading {
+  align-items: flex-end;
+}
+.hall-summary {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 10px;
+  min-width: 220px;
+  padding: 15px 18px;
+  border: 1px solid rgba(232, 190, 77, 0.34);
+  background: rgba(25, 20, 8, 0.5);
+}
+.hall-summary strong {
+  color: #f0c85e;
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 25px;
+  line-height: 1;
+}
+.hall-summary span {
+  align-self: center;
+  color: #aebfd1;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+.hall-leaders {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(0, 2fr);
+  gap: 22px;
+  margin-bottom: 24px;
+  padding: 22px;
+  border: 1px solid rgba(232, 190, 77, 0.28);
+  background: linear-gradient(120deg, rgba(27, 20, 6, 0.86), rgba(4, 26, 56, 0.82));
+}
+.hall-leaders:empty {
+  display: none;
+}
+.hall-leaders-heading h3 {
+  margin: 5px 0 0;
+  color: #f0f5fb;
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 25px;
+  text-transform: uppercase;
+}
+.hall-leaders-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.hall-leader-card {
+  display: flex;
+  position: relative;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid rgba(232, 190, 77, 0.25);
+  background: rgba(2, 17, 39, 0.72);
+}
+.hall-leader-position {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  color: #e9c15a;
+  font-size: 9px;
+  font-weight: 800;
+}
+.hall-leader-photo {
+  display: grid;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  overflow: hidden;
+  border: 2px solid #d9b652;
+  border-radius: 50%;
+  color: #06162d;
+  background: #d9b652;
+  font-weight: 900;
+}
+.hall-leader-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.hall-leader-card div:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+.hall-leader-card strong {
+  overflow: hidden;
+  color: #eef5fc;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hall-leader-card small {
+  color: #d9b652;
+  font-size: 8px;
+  text-transform: uppercase;
+}
+.hall-filters {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  align-items: end;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.hall-category-filters {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+}
+.hall-filter {
+  min-height: 43px;
+  border: 1px solid rgba(80, 178, 238, 0.22);
+  color: #8fa9c2;
+  background: rgba(2, 18, 42, 0.68);
+  font-size: 9px;
+  font-weight: 800;
+}
+.hall-filter:hover,
+.hall-filter.active {
+  border-color: #d9b652;
+  color: #f3d779;
+  background: rgba(105, 78, 13, 0.22);
+}
+.hall-awards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.hall-award-card {
+  overflow: hidden;
+  border: 1px solid rgba(224, 185, 73, 0.27);
+  background: linear-gradient(155deg, rgba(12, 39, 73, 0.96), rgba(12, 15, 27, 0.98));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22);
+}
+.hall-award-photo {
+  position: relative;
+  height: 220px;
+  overflow: hidden;
+  background: radial-gradient(circle at center, rgba(226, 188, 74, 0.22), rgba(3, 15, 34, 0.98));
+}
+.hall-award-photo > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.hall-card-placeholder {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-content: center;
+  text-align: center;
+}
+.hall-card-placeholder span {
+  color: #e7c35f;
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 66px;
+  font-weight: 800;
+}
+.hall-card-placeholder small {
+  color: #6f8ca8;
+  letter-spacing: 0.28em;
+}
+.hall-award-year {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 222, 126, 0.5);
+  color: #fee48d;
+  background: rgba(4, 11, 22, 0.88);
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+}
+.hall-award-body {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+.hall-award-category {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #e9c65e;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.hall-award-category b {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border: 1px solid rgba(230, 193, 88, 0.4);
+  border-radius: 50%;
+}
+.hall-award-body h3 {
+  margin: 0;
+  color: #f5f8fc;
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 25px;
+  text-transform: uppercase;
+}
+.hall-award-body p {
+  min-height: 34px;
+  margin: 0;
+  color: #91a8bd;
+  font-size: 9px;
+  line-height: 1.55;
+}
+.hall-title-seal {
+  padding-top: 9px;
+  border-top: 1px solid rgba(232, 190, 77, 0.2);
+  color: #d8b551;
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.hall-empty-state {
+  grid-column: 1 / -1;
+}
+.hall-admin-card {
+  grid-column: 1 / -1;
+}
+.hall-admin-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+}
+.hall-admin-thumb {
+  color: #e9c65e;
+  font-weight: 900;
+}
+#hall-award-player + small {
+  display: block;
+  margin-top: 5px;
+  color: #7692ae;
+  font-size: 9px;
+}
+
+@media (max-width: 1100px) {
+  .hall-awards-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .hall-category-filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 800px) {
+  .hall-page-heading {
+    align-items: flex-start;
+  }
+  .hall-leaders,
+  .hall-filters {
+    grid-template-columns: 1fr;
+  }
+  .hall-leaders-list,
+  .hall-awards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .hall-summary {
+    width: 100%;
+  }
+  .hall-leaders-list,
+  .hall-awards-grid {
+    grid-template-columns: 1fr;
+  }
+  .hall-category-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .hall-award-photo {
+    height: 270px;
+  }
+}
