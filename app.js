@@ -14,18 +14,22 @@ const TEAM_LIMIT = 20;
 const DIRECTOR_PHOTO_BUCKET = "director-photos";
 const MEDIA_PHOTO_BUCKET = "media-gallery";
 const MEDIA_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+const HALL_PHOTO_BUCKET = "hall-of-fame";
+const HALL_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const DIRECTOR_CROP_SIZE = 220;
 const DEFAULT_DIRECTORS = [
   { id: "anderson", slot: 1, name: "Anderson", role: "Diretor Geral", instagramUrl: "https://www.instagram.com/anderson_r_andrade/", photo: null },
   { id: "almir", slot: 2, name: "Almir", role: "Diretor Auxiliar", instagramUrl: "https://www.instagram.com/almir.claudino/", photo: null },
   { id: "jhonnatan", slot: 3, name: "Jhonnatan", role: "Diretor de Marketing", instagramUrl: "https://www.instagram.com/jhonnatan_nascimento/", photo: null }
 ];
-let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [], highlightClips: [], directors: [], notices: [], mediaItems: [] };
+let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [], highlightClips: [], directors: [], notices: [], mediaItems: [], hallAwards: [] };
 let selectedRanking = "goals";
 let selectedPositionFilter = "all";
 let selectedMediaType = "all";
 let selectedMediaYear = "all";
 let selectedMediaCategory = "all";
+let selectedHallYear = "all";
+let selectedHallCategory = "all";
 let expandedPublicRoundIds = new Set();
 let pendingPhotoFile = null;
 let pendingEditPhotoFile = null;
@@ -44,6 +48,7 @@ let highlightClipsAvailable = true;
 let directorsAvailable = true;
 let noticesAvailable = true;
 let mediaAvailable = true;
+let hallOfFameAvailable = true;
 let gameDraftEntries = null;
 let gameGoalEvents = [];
 let lineupSearchText = "";
@@ -220,6 +225,22 @@ function mediaCategoryInfo(category) {
     lance: { label: "Melhor lance", icon: "▶" },
     outro: { label: "G.P.F.C", icon: "●" }
   }[category] || { label: "G.P.F.C", icon: "●" };
+}
+function hallCategoryInfo(category) {
+  return {
+    artilheiro: { label: "Artilheiro", title: "Artilheiro do ano", icon: "⚽" },
+    garcom: { label: "Garçom", title: "Garçom do ano", icon: "A" },
+    craque: { label: "Craque", title: "Craque do ano", icon: "★" },
+    xerife: { label: "Xerife", title: "Xerife do ano", icon: "X" },
+    paredao: { label: "Paredão", title: "Paredão do ano", icon: "P" }
+  }[category] || { label: "Campeão", title: "Campeão do ano", icon: "★" };
+}
+function hallWinnerKey(award) {
+  return award.playerId || String(award.winnerName || "").trim().toLocaleLowerCase("pt-BR");
+}
+function hallTitleCount(award) {
+  const key = hallWinnerKey(award);
+  return data.hallAwards.filter(item => item.status === "active" && hallWinnerKey(item) === key).length;
 }
 function allMediaEntries() {
   const galleryItems = data.mediaItems
@@ -1249,6 +1270,73 @@ function renderAdminMedia() {
   }).join("")}` : `<p class="adjustment-note">Nenhuma foto publicada ainda. Os Reels das rodadas já aparecem na página Mídias automaticamente.</p>`;
   if (!editingId) updateMediaFormFields();
 }
+function resetHallForm() {
+  const form = document.querySelector("#hall-form");
+  if (!form) return;
+  form.reset();
+  document.querySelector("#hall-award-id").value = "";
+  document.querySelector("#hall-award-year").value = String(SEASON - 1);
+  document.querySelector("#save-hall-award").innerHTML = `Adicionar campeão <span>→</span>`;
+  document.querySelector("#cancel-hall-edit").hidden = true;
+}
+function renderHallOfFame() {
+  const grid = document.querySelector("#hall-awards-grid");
+  const summary = document.querySelector("#hall-summary");
+  const leaders = document.querySelector("#hall-leaders");
+  const yearSelect = document.querySelector("#hall-year-filter");
+  if (!grid || !summary || !leaders || !yearSelect) return;
+  const awards = data.hallAwards.filter(item => item.status === "active");
+  const years = [...new Set(awards.map(item => number(item.year)).filter(Boolean))].sort((a, b) => b - a);
+  const previousYear = selectedHallYear;
+  yearSelect.innerHTML = `<option value="all">Todos</option>${years.map(year => `<option value="${year}">${year}</option>`).join("")}`;
+  selectedHallYear = previousYear === "all" || years.includes(number(previousYear)) ? previousYear : "all";
+  yearSelect.value = selectedHallYear;
+  document.querySelectorAll("[data-hall-category]").forEach(button => button.classList.toggle("active", button.dataset.hallCategory === selectedHallCategory));
+  const championKeys = new Set(awards.map(hallWinnerKey));
+  summary.innerHTML = `<strong>${awards.length}</strong><span>troféus registrados</span><strong>${championKeys.size}</strong><span>campeões</span>`;
+  const titleTotals = awards.reduce((totals, award) => {
+    const key = hallWinnerKey(award);
+    const current = totals.get(key) || { name: award.winnerName, photo: award.photoUrl, total: 0 };
+    current.total += 1;
+    if (!current.photo && award.photoUrl) current.photo = award.photoUrl;
+    totals.set(key, current);
+    return totals;
+  }, new Map());
+  const topChampions = [...titleTotals.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "pt-BR")).slice(0, 3);
+  leaders.innerHTML = topChampions.length ? `<div class="hall-leaders-heading"><p class="eyebrow">MAIORES CAMPEÕES</p><h3>Quem mais levantou troféus</h3></div><div class="hall-leaders-list">${topChampions.map((champion, index) => `<article class="hall-leader-card"><span class="hall-leader-position">${index + 1}º</span><div class="hall-leader-photo">${champion.photo ? `<img src="${escapeHtml(champion.photo)}" alt="Foto de ${escapeHtml(champion.name)}" loading="lazy" />` : `<span>${escapeHtml(champion.name.slice(0, 2).toUpperCase())}</span>`}</div><div><strong>${escapeHtml(champion.name)}</strong><small>${champion.total} ${champion.total === 1 ? "título" : "títulos"}</small></div></article>`).join("")}</div>` : "";
+  const filtered = awards
+    .filter(item => (selectedHallYear === "all" || String(item.year) === String(selectedHallYear)) && (selectedHallCategory === "all" || item.category === selectedHallCategory))
+    .sort((a, b) => number(b.year) - number(a.year) || a.category.localeCompare(b.category, "pt-BR") || a.winnerName.localeCompare(b.winnerName, "pt-BR"));
+  grid.innerHTML = filtered.length ? filtered.map(award => {
+    const category = hallCategoryInfo(award.category);
+    const titles = hallTitleCount(award);
+    const photo = award.photoUrl
+      ? `<img src="${escapeHtml(award.photoUrl)}" alt="Foto de ${escapeHtml(award.winnerName)}" loading="lazy" />`
+      : `<div class="hall-card-placeholder"><span>${category.icon}</span><small>G.P.F.C</small></div>`;
+    return `<article class="hall-award-card hall-${award.category}"><div class="hall-award-photo">${photo}<span class="hall-award-year">${escapeHtml(award.year)}</span></div><div class="hall-award-body"><span class="hall-award-category"><b>${category.icon}</b>${category.title}</span><h3>${escapeHtml(award.winnerName)}</h3><p>${award.note ? escapeHtml(award.note) : `Campeão da temporada ${escapeHtml(award.year)}.`}</p><span class="hall-title-seal">${titles} ${titles === 1 ? "título no Hall" : "títulos no Hall"}</span></div></article>`;
+  }).join("") : `<div class="empty-state hall-empty-state">Nenhum campeão encontrado com este filtro.</div>`;
+}
+function renderAdminHallOfFame() {
+  const form = document.querySelector("#hall-form");
+  const list = document.querySelector("#hall-admin-list");
+  const playerSelect = document.querySelector("#hall-award-player");
+  if (!form || !list || !playerSelect) return;
+  const selectedPlayer = playerSelect.value;
+  playerSelect.innerHTML = `<option value="">Vencedor antigo ou fora do elenco</option>${[...data.players].sort((a, b) => displayName(a).localeCompare(displayName(b), "pt-BR")).map(player => `<option value="${player.id}">${escapeHtml(displayName(player))} · #${escapeHtml(shirtNumber(player))}</option>`).join("")}`;
+  if (selectedPlayer) playerSelect.value = selectedPlayer;
+  if (!hallOfFameAvailable) {
+    form.querySelectorAll("input, textarea, select, button").forEach(field => field.disabled = true);
+    list.innerHTML = `<p class="adjustment-note">Execute a migração 019 no Supabase para ativar o Hall da Fama.</p>`;
+    return;
+  }
+  form.querySelectorAll("input, textarea, select, button").forEach(field => field.disabled = false);
+  const awards = [...data.hallAwards].sort((a, b) => number(b.year) - number(a.year) || a.category.localeCompare(b.category, "pt-BR"));
+  list.innerHTML = awards.length ? `<div class="media-admin-heading"><strong>Campeões cadastrados</strong><small>${awards.length} ${awards.length === 1 ? "título" : "títulos"}</small></div>${awards.map(award => {
+    const category = hallCategoryInfo(award.category);
+    const archived = award.status === "archived";
+    return `<article class="media-admin-item hall-admin-item${archived ? " is-archived" : ""}"><div class="media-admin-thumb hall-admin-thumb">${award.photoUrl ? `<img src="${escapeHtml(award.photoUrl)}" alt="" loading="lazy" />` : category.icon}</div><div class="media-admin-copy"><span>${category.label} · ${escapeHtml(award.year)}</span><strong>${escapeHtml(award.winnerName)}</strong><small>${archived ? "Arquivado" : "Publicado"}</small></div><div class="media-admin-actions"><button type="button" data-edit-hall-award="${award.id}">Editar</button><button type="button" data-archive-hall-award="${award.id}">${archived ? "Reativar" : "Arquivar"}</button></div></article>`;
+  }).join("")}` : `<p class="adjustment-note">Nenhum campeão cadastrado. Comece pelo ano de 2016 ou pelo ano mais recente.</p>`;
+}
 function resetNoticeForm() {
   const form = document.querySelector("#notice-form");
   if (!form) return;
@@ -1425,6 +1513,7 @@ function renderAll() {
   renderHomeNotices();
   renderPublicAttendanceConfirmation();
   renderMediaGallery();
+  renderHallOfFame();
   renderRanking();
   renderPublicRounds();
   renderPlayers(document.querySelector("#player-search")?.value || "");
@@ -1439,6 +1528,7 @@ function renderAll() {
   renderAdminHighlightClips();
   renderAdminNotices();
   renderAdminMedia();
+  renderAdminHallOfFame();
   updateGameFormState();
 }
 const VIEW_PAGE_TITLES = {
@@ -1447,6 +1537,7 @@ const VIEW_PAGE_TITLES = {
   rodadas: "Rodadas | G.P.F.C - Galera da Pelada",
   atletas: "Atletas | G.P.F.C - Galera da Pelada",
   midias: "Mídias | G.P.F.C - Galera da Pelada",
+  "hall-da-fama": "Hall da Fama | G.P.F.C - Galera da Pelada",
   admin: "Admin | G.P.F.C - Galera da Pelada"
 };
 
@@ -1470,7 +1561,7 @@ function toast(message) {
 }
 
 async function loadRemoteData(showMessage = false) {
-  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult, directorsResult, noticesResult, mediaItemsResult, mediaPlayersResult] = await Promise.all([
+  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult, directorsResult, noticesResult, mediaItemsResult, mediaPlayersResult, hallAwardsResult] = await Promise.all([
     supabaseClient.from("players").select("*").order("full_name"),
     supabaseClient.from("games").select("*").order("played_on", { ascending: false }),
     supabaseClient.from("player_game_stats").select("*"),
@@ -1483,7 +1574,8 @@ async function loadRemoteData(showMessage = false) {
     supabaseClient.from("director_profiles").select("*").order("slot"),
     supabaseClient.from("bulletin_notices").select("*").order("published_at", { ascending: false }),
     supabaseClient.from("media_items").select("*").order("created_at", { ascending: false }),
-    supabaseClient.from("media_item_players").select("*")
+    supabaseClient.from("media_item_players").select("*"),
+    supabaseClient.from("hall_of_fame_awards").select("*").order("award_year", { ascending: false })
   ]);
   const error = playersResult.error || gamesResult.error || statsResult.error || adjustmentsResult.error;
   if (error) { toast(`Não foi possível carregar os dados: ${error.message}`); return; }
@@ -1495,6 +1587,7 @@ async function loadRemoteData(showMessage = false) {
   directorsAvailable = !directorsResult.error;
   noticesAvailable = !noticesResult.error;
   mediaAvailable = !mediaItemsResult.error && !mediaPlayersResult.error;
+  hallOfFameAvailable = !hallAwardsResult.error;
   const gamesById = new Map((gamesResult.data || []).map(game => [game.id, game]));
   const gameStats = new Map((gamesResult.data || []).map(game => [game.id, []]));
   (statsResult.data || []).forEach(stat => gameStats.get(stat.game_id)?.push({
@@ -1542,6 +1635,18 @@ async function loadRemoteData(showMessage = false) {
       createdAt: item.created_at,
       updatedAt: item.updated_at,
       playerIds: mediaPlayersByItem[item.id] || []
+    })),
+    hallAwards: (hallAwardsResult.data || []).map(award => ({
+      id: award.id,
+      year: award.award_year,
+      category: award.category,
+      winnerName: award.winner_name,
+      playerId: award.player_id,
+      photoUrl: award.photo_url,
+      note: award.note,
+      status: award.status,
+      createdAt: award.created_at,
+      updatedAt: award.updated_at
     }))
   };
   if (activeRoundId && !getRoundById(activeRoundId)) activeRoundId = null;
@@ -1609,6 +1714,18 @@ async function uploadMediaPhoto(file) {
   const { error } = await supabaseClient.storage.from(MEDIA_PHOTO_BUCKET).upload(path, file, { cacheControl: "3600", upsert: false });
   if (error) throw error;
   return supabaseClient.storage.from(MEDIA_PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+async function uploadHallPhoto(file, year) {
+  if (!file) return null;
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/avif"];
+  if (!allowedTypes.includes(file.type)) throw new Error("Envie uma foto JPG, PNG, WEBP ou AVIF.");
+  if (file.size > HALL_PHOTO_MAX_BYTES) throw new Error("Escolha uma foto de até 5 MB.");
+  const extensionByType = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/avif": "avif" };
+  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${extensionByType[file.type] || "jpg"}`;
+  const path = `${year}/${fileName}`;
+  const { error } = await supabaseClient.storage.from(HALL_PHOTO_BUCKET).upload(path, file, { cacheControl: "3600", upsert: false });
+  if (error) throw error;
+  return supabaseClient.storage.from(HALL_PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 async function uploadDirectorPhoto(directorId, file) {
   if (!file) return null;
@@ -1997,6 +2114,16 @@ document.querySelector("#media-year-filter").addEventListener("change", event =>
 document.querySelector("#media-category-filter").addEventListener("change", event => {
   selectedMediaCategory = event.target.value;
   renderMediaGallery();
+});
+document.querySelector("#hall-filters").addEventListener("click", event => {
+  const button = event.target.closest("[data-hall-category]");
+  if (!button) return;
+  selectedHallCategory = button.dataset.hallCategory;
+  renderHallOfFame();
+});
+document.querySelector("#hall-year-filter").addEventListener("change", event => {
+  selectedHallYear = event.target.value;
+  renderHallOfFame();
 });
 document.querySelector("#athletes-grid").addEventListener("click", event => {
   const card = event.target.closest("[data-open-athlete]");
@@ -2546,6 +2673,82 @@ document.querySelector("#media-admin-list").addEventListener("click", async even
   if (error) { toast(`Não foi possível atualizar a mídia: ${error.message}`); return; }
   await loadRemoteData();
   toast(archiving ? "Mídia arquivada." : "Mídia reativada na galeria.");
+});
+document.querySelector("#hall-award-player").addEventListener("change", event => {
+  const player = data.players.find(item => item.id === event.target.value);
+  if (player) document.querySelector("#hall-award-name").value = displayName(player);
+});
+document.querySelector("#cancel-hall-edit").addEventListener("click", resetHallForm);
+document.querySelector("#hall-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!requireAdmin()) return;
+  if (!hallOfFameAvailable) { toast("Execute a migração 019 no Supabase para ativar o Hall da Fama."); return; }
+  const id = document.querySelector("#hall-award-id").value;
+  const existing = data.hallAwards.find(item => item.id === id);
+  const year = number(document.querySelector("#hall-award-year").value);
+  const playerId = document.querySelector("#hall-award-player").value || null;
+  const player = data.players.find(item => item.id === playerId);
+  const winnerName = document.querySelector("#hall-award-name").value.trim();
+  const file = document.querySelector("#hall-award-photo").files[0];
+  if (year < 2016 || winnerName.length < 2) { toast("Informe o ano e o nome do campeão."); return; }
+  let photoUrl = existing?.photoUrl || player?.photo || null;
+  try {
+    if (file) photoUrl = await uploadHallPhoto(file, year);
+  } catch (error) {
+    toast(`Não foi possível preparar a foto: ${error.message}`);
+    return;
+  }
+  const payload = {
+    award_year: year,
+    category: document.querySelector("#hall-award-category").value,
+    winner_name: winnerName,
+    player_id: playerId,
+    photo_url: photoUrl,
+    note: document.querySelector("#hall-award-note").value.trim(),
+    status: existing?.status || "active",
+    updated_at: new Date().toISOString()
+  };
+  const request = id
+    ? supabaseClient.from("hall_of_fame_awards").update(payload).eq("id", id)
+    : supabaseClient.from("hall_of_fame_awards").insert(payload);
+  const { error } = await request;
+  if (error) {
+    const duplicate = error.code === "23505";
+    toast(duplicate ? "Este campeão já está cadastrado nessa categoria e ano." : `Não foi possível salvar o campeão: ${error.message}`);
+    return;
+  }
+  resetHallForm();
+  await loadRemoteData();
+  toast(id ? "Campeão atualizado no Hall da Fama." : "Campeão adicionado ao Hall da Fama.");
+});
+document.querySelector("#hall-admin-list").addEventListener("click", async event => {
+  const editButton = event.target.closest("[data-edit-hall-award]");
+  const archiveButton = event.target.closest("[data-archive-hall-award]");
+  if (editButton) {
+    if (!requireAdmin()) return;
+    const award = data.hallAwards.find(item => item.id === editButton.dataset.editHallAward);
+    if (!award) return;
+    document.querySelector("#hall-award-id").value = award.id;
+    document.querySelector("#hall-award-year").value = award.year;
+    document.querySelector("#hall-award-category").value = award.category;
+    document.querySelector("#hall-award-player").value = award.playerId || "";
+    document.querySelector("#hall-award-name").value = award.winnerName;
+    document.querySelector("#hall-award-note").value = award.note || "";
+    document.querySelector("#hall-award-photo").value = "";
+    document.querySelector("#save-hall-award").innerHTML = `Salvar alterações <span>→</span>`;
+    document.querySelector("#cancel-hall-edit").hidden = false;
+    document.querySelector("#hall-form").scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  if (!archiveButton || !requireAdmin()) return;
+  const award = data.hallAwards.find(item => item.id === archiveButton.dataset.archiveHallAward);
+  if (!award) return;
+  const archiving = award.status !== "archived";
+  if (!confirm(archiving ? "Arquivar este título? Ele deixará de aparecer no Hall da Fama." : "Reativar este título no Hall da Fama?")) return;
+  const { error } = await supabaseClient.from("hall_of_fame_awards").update({ status: archiving ? "archived" : "active", updated_at: new Date().toISOString() }).eq("id", award.id);
+  if (error) { toast(`Não foi possível atualizar o título: ${error.message}`); return; }
+  await loadRemoteData();
+  toast(archiving ? "Título arquivado." : "Título reativado no Hall da Fama.");
 });
 async function submitRodizioGame() {
   if (!requireAdmin()) return;
