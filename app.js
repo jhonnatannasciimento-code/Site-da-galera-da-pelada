@@ -22,7 +22,7 @@ const DEFAULT_DIRECTORS = [
   { id: "almir", slot: 2, name: "Almir", role: "Diretor Auxiliar", instagramUrl: "https://www.instagram.com/almir.claudino/", photo: null },
   { id: "jhonnatan", slot: 3, name: "Jhonnatan", role: "Diretor de Marketing", instagramUrl: "https://www.instagram.com/jhonnatan_nascimento/", photo: null }
 ];
-let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [], highlightClips: [], directors: [], notices: [], mediaItems: [], hallAwards: [] };
+let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [], highlightClips: [], directors: [], notices: [], mediaItems: [], hallAwards: [], auditLogs: [] };
 let selectedRanking = "goals";
 let selectedPositionFilter = "all";
 let selectedMediaType = "all";
@@ -30,6 +30,8 @@ let selectedMediaYear = "all";
 let selectedMediaCategory = "all";
 let selectedHallYear = "all";
 let selectedHallCategory = "all";
+let selectedAuditEntity = "all";
+let selectedAuditAction = "all";
 let expandedPublicRoundIds = new Set();
 let pendingPhotoFile = null;
 let pendingEditPhotoFile = null;
@@ -49,6 +51,7 @@ let directorsAvailable = true;
 let noticesAvailable = true;
 let mediaAvailable = true;
 let hallOfFameAvailable = true;
+let auditLogsAvailable = true;
 let gameDraftEntries = null;
 let gameGoalEvents = [];
 let lineupSearchText = "";
@@ -1408,6 +1411,80 @@ function renderAdminDirectors() {
   }
   container.innerHTML = directorList().map(director => `<article class="admin-director-item"><div>${directorPhotoMarkup(director)}<span><strong>${escapeHtml(director.name)}</strong><small>${escapeHtml(director.role)}</small></span></div><button class="edit-director" data-edit-director="${director.id}" type="button">Editar</button></article>`).join("");
 }
+const AUDIT_ENTITY_INFO = {
+  players: { label: "Atleta", group: "players" },
+  rounds: { label: "Rodada", group: "rounds" },
+  games: { label: "Confronto", group: "rounds" },
+  player_game_stats: { label: "Estatística de confronto", group: "statistics" },
+  player_season_adjustments: { label: "Saldo histórico", group: "statistics" },
+  round_attendance: { label: "Presença", group: "statistics" },
+  round_awards: { label: "Destaque da rodada", group: "statistics" },
+  game_goal_events: { label: "Gol ou assistência", group: "statistics" },
+  bulletin_notices: { label: "Aviso", group: "notices" }
+};
+const AUDIT_ACTION_INFO = {
+  INSERT: { label: "Criou", className: "created" },
+  UPDATE: { label: "Alterou", className: "updated" },
+  DELETE: { label: "Excluiu", className: "deleted" }
+};
+const AUDIT_FIELD_LABELS = {
+  full_name: "nome", shirt_number: "camisa", position: "posição", photo_url: "foto",
+  round_number: "número da rodada", played_on: "data", place: "local", status: "situação",
+  home_team: "primeiro time", away_team: "segundo time", home_score: "placar do primeiro time",
+  away_score: "placar do segundo time", result_method: "decisão", winner_side: "vencedor",
+  games: "jogos", goals: "gols", assists: "assistências", craque: "craque",
+  xerife: "xerife", paredao: "paredão", title: "título", message: "mensagem",
+  category: "categoria", is_pinned: "fixação", expires_on: "validade", attendance_closed: "lista de presença"
+};
+function auditPlayerName(snapshot) {
+  const playerId = snapshot?.player_id || snapshot?.scorer_id;
+  return data.players.find(player => player.id === playerId)?.name || "Atleta";
+}
+function auditRecordLabel(log) {
+  const snapshot = log.newData || log.oldData || {};
+  if (log.entityType === "players") return snapshot.full_name || "Atleta";
+  if (log.entityType === "rounds") return `Rodada ${snapshot.round_number || ""}`.trim();
+  if (log.entityType === "games") return snapshot.game_number ? `Jogo ${snapshot.game_number}` : "Confronto";
+  if (log.entityType === "bulletin_notices") return snapshot.title || "Aviso";
+  if (["player_game_stats", "player_season_adjustments", "round_attendance", "round_awards", "game_goal_events"].includes(log.entityType)) return auditPlayerName(snapshot);
+  return AUDIT_ENTITY_INFO[log.entityType]?.label || log.entityType;
+}
+function auditChangeSummary(log) {
+  if (log.action !== "UPDATE") return "";
+  const ignoredFields = new Set(["id", "created_at", "updated_at", "published_at"]);
+  const oldData = log.oldData || {};
+  const newData = log.newData || {};
+  const changed = Object.keys(newData).filter(field => !ignoredFields.has(field) && JSON.stringify(oldData[field]) !== JSON.stringify(newData[field]));
+  if (!changed.length) return "Registro atualizado";
+  const labels = changed.slice(0, 4).map(field => AUDIT_FIELD_LABELS[field] || field.replaceAll("_", " "));
+  return `Campos: ${labels.join(", ")}${changed.length > 4 ? ` e mais ${changed.length - 4}` : ""}`;
+}
+function formatAuditDate(date) {
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(date));
+}
+function renderAdminAuditLogs() {
+  const list = document.querySelector("#audit-log-list");
+  const summary = document.querySelector("#audit-log-summary");
+  if (!list || !summary) return;
+  if (!auditLogsAvailable) {
+    summary.textContent = "Auditoria ainda não configurada";
+    list.innerHTML = `<p class="adjustment-note">Execute a migração 020 no Supabase para começar a registrar as atividades.</p>`;
+    return;
+  }
+  const logs = data.auditLogs.filter(log => {
+    const entityGroup = AUDIT_ENTITY_INFO[log.entityType]?.group || log.entityType;
+    return (selectedAuditEntity === "all" || entityGroup === selectedAuditEntity)
+      && (selectedAuditAction === "all" || log.action === selectedAuditAction);
+  });
+  summary.textContent = `${logs.length} ${logs.length === 1 ? "atividade exibida" : "atividades exibidas"}`;
+  list.innerHTML = logs.length ? logs.map(log => {
+    const entity = AUDIT_ENTITY_INFO[log.entityType] || { label: log.entityType };
+    const action = AUDIT_ACTION_INFO[log.action] || { label: log.action, className: "updated" };
+    const actor = log.adminEmail || "Administrador";
+    const details = auditChangeSummary(log);
+    return `<article class="audit-log-item"><span class="audit-action audit-${action.className}">${action.label}</span><div class="audit-log-copy"><strong>${escapeHtml(entity.label)} · ${escapeHtml(auditRecordLabel(log))}</strong><small>${escapeHtml(actor)} · ${escapeHtml(formatAuditDate(log.createdAt))}</small>${details ? `<p>${escapeHtml(details)}</p>` : ""}</div></article>`;
+  }).join("") : `<div class="empty-state">Nenhuma atividade encontrada para estes filtros.</div>`;
+}
 function renderAdjustmentForm() {
   const select = document.querySelector("#adjustment-player");
   const selectedId = select.value;
@@ -1529,6 +1606,7 @@ function renderAll() {
   renderAdminNotices();
   renderAdminMedia();
   renderAdminHallOfFame();
+  renderAdminAuditLogs();
   updateGameFormState();
 }
 const VIEW_PAGE_TITLES = {
@@ -1561,7 +1639,7 @@ function toast(message) {
 }
 
 async function loadRemoteData(showMessage = false) {
-  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult, directorsResult, noticesResult, mediaItemsResult, mediaPlayersResult, hallAwardsResult] = await Promise.all([
+  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult, directorsResult, noticesResult, mediaItemsResult, mediaPlayersResult, hallAwardsResult, auditLogsResult] = await Promise.all([
     supabaseClient.from("players").select("*").order("full_name"),
     supabaseClient.from("games").select("*").order("played_on", { ascending: false }),
     supabaseClient.from("player_game_stats").select("*"),
@@ -1575,7 +1653,10 @@ async function loadRemoteData(showMessage = false) {
     supabaseClient.from("bulletin_notices").select("*").order("published_at", { ascending: false }),
     supabaseClient.from("media_items").select("*").order("created_at", { ascending: false }),
     supabaseClient.from("media_item_players").select("*"),
-    supabaseClient.from("hall_of_fame_awards").select("*").order("award_year", { ascending: false })
+    supabaseClient.from("hall_of_fame_awards").select("*").order("award_year", { ascending: false }),
+    isAdmin
+      ? supabaseClient.from("admin_activity_logs").select("*").order("created_at", { ascending: false }).limit(150)
+      : Promise.resolve({ data: [], error: null })
   ]);
   const error = playersResult.error || gamesResult.error || statsResult.error || adjustmentsResult.error;
   if (error) { toast(`Não foi possível carregar os dados: ${error.message}`); return; }
@@ -1588,6 +1669,7 @@ async function loadRemoteData(showMessage = false) {
   noticesAvailable = !noticesResult.error;
   mediaAvailable = !mediaItemsResult.error && !mediaPlayersResult.error;
   hallOfFameAvailable = !hallAwardsResult.error;
+  auditLogsAvailable = !auditLogsResult.error;
   const gamesById = new Map((gamesResult.data || []).map(game => [game.id, game]));
   const gameStats = new Map((gamesResult.data || []).map(game => [game.id, []]));
   (statsResult.data || []).forEach(stat => gameStats.get(stat.game_id)?.push({
@@ -1647,6 +1729,17 @@ async function loadRemoteData(showMessage = false) {
       status: award.status,
       createdAt: award.created_at,
       updatedAt: award.updated_at
+    })),
+    auditLogs: (auditLogsResult.data || []).map(log => ({
+      id: log.id,
+      adminUserId: log.admin_user_id,
+      adminEmail: log.admin_email,
+      action: log.action,
+      entityType: log.entity_type,
+      recordId: log.record_id,
+      oldData: log.old_data,
+      newData: log.new_data,
+      createdAt: log.created_at
     }))
   };
   if (activeRoundId && !getRoundById(activeRoundId)) activeRoundId = null;
@@ -2233,6 +2326,7 @@ document.querySelector("#login-form").addEventListener("submit", async event => 
   if (error) { errorBox.textContent = "E-mail ou senha inválidos."; return; }
   await refreshAuthState();
   if (!isAdmin) { errorBox.textContent = "Esta conta não tem autorização administrativa."; return; }
+  await loadRemoteData();
   closeLoginModal();
   showView("admin");
   toast("Login de administrador realizado.");
@@ -3173,6 +3267,21 @@ document.querySelector("#player-edit-form").addEventListener("submit", async eve
   closePlayerEditModal();
   await loadRemoteData();
   toast("Atleta e estatísticas atualizados.");
+});
+
+document.querySelector("#audit-entity-filter")?.addEventListener("change", event => {
+  selectedAuditEntity = event.target.value;
+  renderAdminAuditLogs();
+});
+document.querySelector("#audit-action-filter")?.addEventListener("change", event => {
+  selectedAuditAction = event.target.value;
+  renderAdminAuditLogs();
+});
+document.querySelector("#refresh-audit-log")?.addEventListener("click", async event => {
+  event.currentTarget.disabled = true;
+  await loadRemoteData();
+  event.currentTarget.disabled = false;
+  toast("Histórico de atividades atualizado.");
 });
 
 document.querySelector("#game-date").value = new Date().toISOString().slice(0, 10);

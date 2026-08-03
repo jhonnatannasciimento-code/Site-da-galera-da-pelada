@@ -392,6 +392,17 @@
             <div id="hall-admin-list" class="hall-admin-list"></div>
           </article>
 
+          <article class="admin-card audit-admin-card">
+            <div class="admin-card-heading"><span class="step">09</span><div><h2>Atividades dos administradores</h2><p>Acompanhe quem alterou atletas, rodadas, estatísticas e avisos.</p></div></div>
+            <div class="audit-toolbar">
+              <label>Área<select id="audit-entity-filter"><option value="all">Todas</option><option value="players">Atletas</option><option value="rounds">Rodadas e confrontos</option><option value="statistics">Estatísticas e presença</option><option value="notices">Avisos</option></select></label>
+              <label>Ação<select id="audit-action-filter"><option value="all">Todas</option><option value="INSERT">Criações</option><option value="UPDATE">Alterações</option><option value="DELETE">Exclusões</option></select></label>
+              <button id="refresh-audit-log" class="button secondary" type="button">Atualizar histórico</button>
+            </div>
+            <div class="audit-log-heading"><strong>Histórico recente</strong><small id="audit-log-summary"></small></div>
+            <div id="audit-log-list" class="audit-log-list"></div>
+          </article>
+
           <article class="admin-card adjustment-card">
             <div class="admin-card-heading"><span class="step">04</span><div><h2>Saldo histórico</h2><p>Informe o que já aconteceu em 2026 antes de usar o site nas rodadas de sábado.</p></div></div>
             <form id="adjustment-form" class="form-stack">
