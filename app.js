@@ -24,7 +24,7 @@ const DEFAULT_DIRECTORS = [
   { id: "almir", slot: 2, name: "Almir", role: "Diretor Auxiliar", instagramUrl: "https://www.instagram.com/almir.claudino/", photo: null },
   { id: "jhonnatan", slot: 3, name: "Jhonnatan", role: "Diretor de Marketing", instagramUrl: "https://www.instagram.com/jhonnatan_nascimento/", photo: null }
 ];
-let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [], highlightClips: [], directors: [], notices: [], mediaItems: [], hallAwards: [], monthlyFees: [], auditLogs: [] };
+let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [], highlightClips: [], directors: [], notices: [], mediaItems: [], hallAwards: [], monthlyFees: [], publicRegularization: {}, auditLogs: [] };
 let selectedRanking = "goals";
 let selectedPositionFilter = "all";
 let selectedMediaType = "all";
@@ -54,6 +54,7 @@ let noticesAvailable = true;
 let mediaAvailable = true;
 let hallOfFameAvailable = true;
 let monthlyFeesAvailable = true;
+let publicRegularizationAvailable = true;
 let auditLogsAvailable = true;
 let gameDraftEntries = null;
 let gameGoalEvents = [];
@@ -1420,6 +1421,42 @@ function publicAttendanceRosterMarkup(attendance, players) {
     <div class="public-attendance-roster-grid">${groups}</div>
   </section>`;
 }
+function publicRegularizationMarkup(players) {
+  if (!publicRegularizationAvailable || !Object.keys(data.publicRegularization).length) return "";
+  const groups = [
+    {
+      status: "regular",
+      label: "Liberados",
+      description: "Situação regularizada com a diretoria.",
+      icon: "✓"
+    },
+    {
+      status: "pending",
+      label: "Regularização pendente",
+      description: "Procure a diretoria para regularizar.",
+      icon: "!"
+    }
+  ];
+  const groupMarkup = groups.map(group => {
+    const groupPlayers = players.filter(player => data.publicRegularization[player.id] === group.status);
+    const names = groupPlayers.length
+      ? `<ul>${groupPlayers.map(player => `<li>${escapeHtml(displayName(player))}</li>`).join("")}</ul>`
+      : `<p>Nenhum atleta nesta situação.</p>`;
+    return `<section class="public-regularization-group regularization-${group.status}">
+      <header><span aria-hidden="true">${group.icon}</span><div><strong>${group.label}</strong><small>${group.description}</small></div><b>${groupPlayers.length}</b></header>
+      ${names}
+    </section>`;
+  }).join("");
+  const updatedAt = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date());
+  return `<details class="public-regularization-panel">
+    <summary><span><b>SITUAÇÃO DO ELENCO</b><small>Veja a situação de regularização dos atletas</small></span><strong>Ver situação <i aria-hidden="true">⌄</i></strong></summary>
+    <div class="public-regularization-content">
+      <div class="public-regularization-heading"><div><span>ATUALIZAÇÃO DA DIRETORIA</span><h3>Próxima pelada</h3></div><small>Atualizado em ${updatedAt}</small></div>
+      <div class="public-regularization-grid">${groupMarkup}</div>
+      <p class="public-regularization-privacy">São exibidos apenas os estados “Liberado” e “Regularização pendente”. Valores e detalhes financeiros permanecem privados.</p>
+    </div>
+  </details>`;
+}
 function renderPublicAttendanceConfirmation() {
   const container = document.querySelector("#public-attendance-panel");
   if (!container) return;
@@ -1478,6 +1515,7 @@ function renderPublicAttendanceConfirmation() {
           </div>
         </form>`}
     ${publicAttendanceRosterMarkup(attendance, players)}
+    ${publicRegularizationMarkup(players)}
   </article>`;
 }
 function renderMediaGallery() {
@@ -2104,7 +2142,7 @@ function toast(message) {
 }
 
 async function loadRemoteData(showMessage = false) {
-  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult, directorsResult, noticesResult, mediaItemsResult, mediaPlayersResult, hallAwardsResult, monthlyFeesResult, auditLogsResult] = await Promise.all([
+  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult, directorsResult, noticesResult, mediaItemsResult, mediaPlayersResult, hallAwardsResult, monthlyFeesResult, publicRegularizationResult, auditLogsResult] = await Promise.all([
     supabaseClient.from("players").select("*").order("full_name"),
     supabaseClient.from("games").select("*").order("played_on", { ascending: false }),
     supabaseClient.from("player_game_stats").select("*"),
@@ -2122,6 +2160,7 @@ async function loadRemoteData(showMessage = false) {
     isAdmin
       ? supabaseClient.from("player_monthly_fees").select("*").order("reference_month", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
+    supabaseClient.rpc("public_player_regularization", { p_season: SEASON }),
     isAdmin
       ? supabaseClient.from("admin_activity_logs").select("*").order("created_at", { ascending: false }).limit(150)
       : Promise.resolve({ data: [], error: null })
@@ -2138,6 +2177,7 @@ async function loadRemoteData(showMessage = false) {
   mediaAvailable = !mediaItemsResult.error && !mediaPlayersResult.error;
   hallOfFameAvailable = !hallAwardsResult.error;
   monthlyFeesAvailable = !monthlyFeesResult.error;
+  publicRegularizationAvailable = !publicRegularizationResult.error;
   auditLogsAvailable = !auditLogsResult.error;
   const gamesById = new Map((gamesResult.data || []).map(game => [game.id, game]));
   const gameStats = new Map((gamesResult.data || []).map(game => [game.id, []]));
@@ -2208,6 +2248,7 @@ async function loadRemoteData(showMessage = false) {
       updatedBy: fee.updated_by,
       updatedAt: fee.updated_at
     })),
+    publicRegularization: Object.fromEntries((publicRegularizationResult.data || []).map(item => [item.player_id, item.regularization_status])),
     auditLogs: (auditLogsResult.data || []).map(log => ({
       id: log.id,
       adminUserId: log.admin_user_id,

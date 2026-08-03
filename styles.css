@@ -3423,11 +3423,149 @@ footer {
 .response-unknown header > span { color: #392800; background: #ffd36a; }
 .response-absent { border-color: rgba(255, 130, 149, .28); }
 .response-absent header > span { color: #3c0811; background: #ff8295; }
+.public-regularization-panel {
+  border-top: 1px solid rgba(100, 199, 255, .18);
+  background: rgba(1, 11, 28, .58);
+}
+.public-regularization-panel summary {
+  display: flex;
+  min-height: 70px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 15px 18px;
+  color: #eaf8ff;
+  cursor: pointer;
+  list-style: none;
+}
+.public-regularization-panel summary::-webkit-details-marker { display: none; }
+.public-regularization-panel summary > span {
+  display: grid;
+  gap: 3px;
+}
+.public-regularization-panel summary b {
+  color: #65dfff;
+  font-size: 10px;
+  letter-spacing: .12em;
+}
+.public-regularization-panel summary small {
+  color: #91afc5;
+  font-size: 9px;
+}
+.public-regularization-panel summary > strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  border: 1px solid rgba(101, 218, 254, .3);
+  color: #dff7ff;
+  background: rgba(12, 73, 116, .32);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+.public-regularization-panel summary i {
+  font-style: normal;
+  font-size: 14px;
+  transition: transform .2s ease;
+}
+.public-regularization-panel[open] summary i { transform: rotate(180deg); }
+.public-regularization-content {
+  padding: 0 18px 18px;
+}
+.public-regularization-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 15px 0 12px;
+  border-top: 1px solid rgba(104, 195, 248, .13);
+}
+.public-regularization-heading > div { display: grid; gap: 3px; }
+.public-regularization-heading span {
+  color: #65dfff;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+.public-regularization-heading h3 {
+  margin: 0;
+  color: #f2f9ff;
+  font: 700 20px/1 var(--font-display);
+  text-transform: uppercase;
+}
+.public-regularization-heading > small { color: #789bb4; font-size: 8px; }
+.public-regularization-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.public-regularization-group {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(116, 195, 244, .19);
+  background: rgba(3, 24, 53, .76);
+}
+.public-regularization-group header {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(120, 194, 241, .13);
+}
+.public-regularization-group header > span {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 900;
+}
+.public-regularization-group header > div { display: grid; gap: 2px; }
+.public-regularization-group header strong { color: #eaf7ff; font-size: 10px; }
+.public-regularization-group header small { color: #819eb4; font-size: 8px; }
+.public-regularization-group header > b {
+  min-width: 27px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: #def4ff;
+  background: rgba(104, 193, 248, .13);
+  font-size: 9px;
+  text-align: center;
+}
+.public-regularization-group ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.public-regularization-group li {
+  padding: 5px 7px;
+  border: 1px solid rgba(126, 197, 242, .14);
+  color: #c3d9e8;
+  background: rgba(7, 35, 70, .72);
+  font-size: 8px;
+}
+.public-regularization-group > p { margin: 10px 0 0; color: #7897ae; font-size: 8px; }
+.regularization-regular { border-color: rgba(101, 228, 165, .3); }
+.regularization-regular header > span { color: #062e21; background: #65e4a5; }
+.regularization-pending { border-color: rgba(255, 182, 91, .28); }
+.regularization-pending header > span { color: #382000; background: #ffb65b; }
+.public-regularization-privacy {
+  margin: 11px 0 0;
+  color: #708da4;
+  font-size: 8px;
+  line-height: 1.5;
+}
 
 @media (max-width: 900px) {
   .public-attendance-form { flex-wrap: wrap; }
   .public-attendance-submit { flex-basis: 100%; }
   .public-attendance-roster-grid { grid-template-columns: 1fr; }
+  .public-regularization-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 580px) {
   .public-attendance-summary { align-items: stretch; flex-direction: column; }
@@ -3438,6 +3576,11 @@ footer {
   .public-attendance-roster { padding: 13px; }
   .public-attendance-roster-heading { align-items: start; flex-direction: column; gap: 5px; }
   .public-response-group li { font-size: 9px; }
+  .public-regularization-panel summary { align-items: flex-start; flex-direction: column; padding: 13px; }
+  .public-regularization-panel summary > strong { width: 100%; justify-content: space-between; }
+  .public-regularization-content { padding: 0 13px 13px; }
+  .public-regularization-heading { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .public-regularization-group li { font-size: 9px; }
 }
 .notice-category,
 .notice-pinned {
