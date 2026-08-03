@@ -12,15 +12,20 @@ const MATCH_STAT_FIELDS = ["goals", "assists"];
 const ADJUSTMENT_FIELDS = ["games", ...STAT_FIELDS];
 const TEAM_LIMIT = 20;
 const DIRECTOR_PHOTO_BUCKET = "director-photos";
+const MEDIA_PHOTO_BUCKET = "media-gallery";
+const MEDIA_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const DIRECTOR_CROP_SIZE = 220;
 const DEFAULT_DIRECTORS = [
   { id: "anderson", slot: 1, name: "Anderson", role: "Diretor Geral", instagramUrl: "https://www.instagram.com/anderson_r_andrade/", photo: null },
   { id: "almir", slot: 2, name: "Almir", role: "Diretor Auxiliar", instagramUrl: "https://www.instagram.com/almir.claudino/", photo: null },
   { id: "jhonnatan", slot: 3, name: "Jhonnatan", role: "Diretor de Marketing", instagramUrl: "https://www.instagram.com/jhonnatan_nascimento/", photo: null }
 ];
-let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [], highlightClips: [], directors: [], notices: [] };
+let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [], highlightClips: [], directors: [], notices: [], mediaItems: [] };
 let selectedRanking = "goals";
 let selectedPositionFilter = "all";
+let selectedMediaType = "all";
+let selectedMediaYear = "all";
+let selectedMediaCategory = "all";
 let expandedPublicRoundIds = new Set();
 let pendingPhotoFile = null;
 let pendingEditPhotoFile = null;
@@ -38,6 +43,7 @@ let goalEventsAvailable = true;
 let highlightClipsAvailable = true;
 let directorsAvailable = true;
 let noticesAvailable = true;
+let mediaAvailable = true;
 let gameDraftEntries = null;
 let gameGoalEvents = [];
 let lineupSearchText = "";
@@ -200,6 +206,50 @@ function clipTypeInfo(type) {
     drible: { label: "Drible", icon: "✦" },
     outro: { label: "Melhor lance", icon: "★" }
   }[type] || { label: "Melhor lance", icon: "★" };
+}
+function isSafeHttpsUrl(value) {
+  try { return new URL(value).protocol === "https:"; }
+  catch { return false; }
+}
+function mediaCategoryInfo(category) {
+  return {
+    rodada: { label: "Rodada", icon: "⚽" },
+    premiacao: { label: "Premiação", icon: "★" },
+    confraternizacao: { label: "Confraternização", icon: "◆" },
+    historia: { label: "Nossa história", icon: "GP" },
+    lance: { label: "Melhor lance", icon: "▶" },
+    outro: { label: "G.P.F.C", icon: "●" }
+  }[category] || { label: "G.P.F.C", icon: "●" };
+}
+function allMediaEntries() {
+  const galleryItems = data.mediaItems
+    .filter(item => item.status === "active")
+    .map(item => ({ ...item, origin: "gallery" }));
+  const reelItems = data.highlightClips.map(clip => {
+    const round = getRoundById(clip.roundId);
+    const player = data.players.find(item => item.id === clip.playerId);
+    const info = clipTypeInfo(clip.type);
+    return {
+      id: `clip-${clip.id}`,
+      mediaType: "video",
+      title: `${info.label} de ${displayName(player)}`,
+      description: clip.caption || `Lance de destaque de ${displayName(player)} ${round ? `na ${roundLabel(round)}` : `na temporada ${SEASON}`}.`,
+      year: round?.date ? number(String(round.date).slice(0, 4)) : SEASON,
+      category: "lance",
+      roundId: clip.roundId,
+      sourceUrl: clip.instagramUrl,
+      featured: false,
+      status: "active",
+      createdAt: clip.createdAt,
+      playerIds: player ? [player.id] : [],
+      origin: "highlight"
+    };
+  });
+  return [...galleryItems, ...reelItems].sort((a, b) =>
+    number(Boolean(b.featured)) - number(Boolean(a.featured)) ||
+    number(b.year) - number(a.year) ||
+    String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
+  );
 }
 function roundHighlightPlayers(roundId) {
   const players = new Map();
@@ -1125,6 +1175,80 @@ function renderPublicAttendanceConfirmation() {
         </form>`}
   </article>`;
 }
+function renderMediaGallery() {
+  const gallery = document.querySelector("#media-gallery");
+  const yearSelect = document.querySelector("#media-year-filter");
+  const summary = document.querySelector("#media-gallery-summary");
+  if (!gallery || !yearSelect || !summary) return;
+  const entries = allMediaEntries();
+  const years = [...new Set(entries.map(item => number(item.year)).filter(Boolean))].sort((a, b) => b - a);
+  const previousYear = selectedMediaYear;
+  yearSelect.innerHTML = `<option value="all">Todos</option>${years.map(year => `<option value="${year}">${year}</option>`).join("")}`;
+  selectedMediaYear = previousYear === "all" || years.includes(number(previousYear)) ? previousYear : "all";
+  yearSelect.value = selectedMediaYear;
+  document.querySelector("#media-category-filter").value = selectedMediaCategory;
+  document.querySelectorAll("[data-media-type]").forEach(button => button.classList.toggle("active", button.dataset.mediaType === selectedMediaType));
+  const filtered = entries.filter(item =>
+    (selectedMediaType === "all" || item.mediaType === selectedMediaType) &&
+    (selectedMediaYear === "all" || String(item.year) === String(selectedMediaYear)) &&
+    (selectedMediaCategory === "all" || item.category === selectedMediaCategory)
+  );
+  summary.innerHTML = `<strong>${filtered.length}</strong> ${filtered.length === 1 ? "memória encontrada" : "memórias encontradas"}<span>Fotos históricas e vídeos publicados nas redes do G.P.F.C.</span>`;
+  gallery.innerHTML = filtered.length ? filtered.map(item => {
+    const category = mediaCategoryInfo(item.category);
+    const round = item.roundId ? getRoundById(item.roundId) : null;
+    const relatedPlayers = (item.playerIds || []).map(id => data.players.find(player => player.id === id)).filter(Boolean);
+    const playerText = relatedPlayers.map(displayName).join(", ");
+    const body = item.mediaType === "photo"
+      ? `<div class="media-card-visual"><img src="${escapeHtml(item.sourceUrl)}" alt="${escapeHtml(item.title)}" loading="lazy" /></div>`
+      : `<div class="media-card-visual media-video-visual"><span class="media-play" aria-hidden="true">▶</span><img src="assets/escudo-moderno-gpfc.webp" alt="" loading="lazy" /></div>`;
+    return `<a class="media-card${item.featured ? " is-featured" : ""}" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${item.mediaType === "photo" ? "Abrir foto" : "Assistir vídeo"}: ${escapeHtml(item.title)}">${body}<div class="media-card-content"><div class="media-card-meta"><span>${category.icon} ${category.label}</span><b>${escapeHtml(item.year)}</b></div><h3>${escapeHtml(item.title)}</h3>${item.description ? `<p>${escapeHtml(item.description)}</p>` : ""}<div class="media-card-details">${round ? `<span>${escapeHtml(roundLabel(round))}</span>` : ""}${playerText ? `<span>${escapeHtml(playerText)}</span>` : ""}</div><span class="media-card-open-label">${item.mediaType === "photo" ? "Abrir foto" : "Assistir vídeo"} <b>↗</b></span></div></a>`;
+  }).join("") : `<div class="empty-state media-empty-state">Nenhuma mídia encontrada com estes filtros. Escolha outra categoria ou ano.</div>`;
+}
+function updateMediaFormFields() {
+  const type = document.querySelector("#media-type")?.value || "photo";
+  const photoField = document.querySelector("#media-photo-field");
+  const urlField = document.querySelector("#media-url-field");
+  if (!photoField || !urlField) return;
+  photoField.hidden = type !== "photo";
+  urlField.hidden = type !== "video";
+}
+function resetMediaForm() {
+  const form = document.querySelector("#media-form");
+  if (!form) return;
+  form.reset();
+  document.querySelector("#media-id").value = "";
+  document.querySelector("#media-year").value = String(SEASON);
+  document.querySelector("#save-media").innerHTML = `Publicar mídia <span>→</span>`;
+  document.querySelector("#cancel-media-edit").hidden = true;
+  updateMediaFormFields();
+}
+function renderAdminMedia() {
+  const form = document.querySelector("#media-form");
+  const list = document.querySelector("#media-admin-list");
+  const roundSelect = document.querySelector("#media-round");
+  const playerOptions = document.querySelector("#media-player-options");
+  if (!form || !list || !roundSelect || !playerOptions) return;
+  const editingId = document.querySelector("#media-id").value;
+  const selectedRound = roundSelect.value;
+  const selectedPlayers = [...playerOptions.querySelectorAll("input:checked")].map(input => input.value);
+  roundSelect.innerHTML = `<option value="">Nenhuma rodada</option>${[...data.rounds].sort((a, b) => b.number - a.number).map(round => `<option value="${round.id}">${escapeHtml(roundLabel(round))} · ${formatDate(round.date)}</option>`).join("")}`;
+  playerOptions.innerHTML = [...data.players].sort((a, b) => displayName(a).localeCompare(displayName(b), "pt-BR")).map(player => `<label class="media-player-option"><input type="checkbox" value="${player.id}"${selectedPlayers.includes(player.id) ? " checked" : ""}><span>${escapeHtml(displayName(player))}<small>Camisa #${escapeHtml(shirtNumber(player))}</small></span></label>`).join("");
+  if (selectedRound) roundSelect.value = selectedRound;
+  if (!mediaAvailable) {
+    form.querySelectorAll("input, textarea, select, button").forEach(field => field.disabled = true);
+    list.innerHTML = `<p class="adjustment-note">Execute a migração 018 no Supabase para ativar a Galeria de mídias.</p>`;
+    return;
+  }
+  form.querySelectorAll("input, textarea, select, button").forEach(field => field.disabled = false);
+  const items = [...data.mediaItems].sort((a, b) => number(b.year) - number(a.year) || String(b.createdAt).localeCompare(String(a.createdAt)));
+  list.innerHTML = items.length ? `<div class="media-admin-heading"><strong>Publicações da galeria</strong><small>${items.length} ${items.length === 1 ? "item" : "itens"}</small></div>${items.map(item => {
+    const category = mediaCategoryInfo(item.category);
+    const archived = item.status === "archived";
+    return `<article class="media-admin-item${archived ? " is-archived" : ""}"><div class="media-admin-thumb">${item.mediaType === "photo" ? `<img src="${escapeHtml(item.sourceUrl)}" alt="" loading="lazy" />` : "▶"}</div><div class="media-admin-copy"><span>${category.label} · ${escapeHtml(item.year)}</span><strong>${escapeHtml(item.title)}</strong><small>${archived ? "Arquivada" : item.featured ? "Em destaque" : "Publicada"}</small></div><div class="media-admin-actions"><button type="button" data-edit-media="${item.id}">Editar</button><button type="button" data-archive-media="${item.id}">${archived ? "Reativar" : "Arquivar"}</button></div></article>`;
+  }).join("")}` : `<p class="adjustment-note">Nenhuma foto publicada ainda. Os Reels das rodadas já aparecem na página Mídias automaticamente.</p>`;
+  if (!editingId) updateMediaFormFields();
+}
 function resetNoticeForm() {
   const form = document.querySelector("#notice-form");
   if (!form) return;
@@ -1300,6 +1424,7 @@ function renderAll() {
   renderHomeClips();
   renderHomeNotices();
   renderPublicAttendanceConfirmation();
+  renderMediaGallery();
   renderRanking();
   renderPublicRounds();
   renderPlayers(document.querySelector("#player-search")?.value || "");
@@ -1313,6 +1438,7 @@ function renderAll() {
   renderRoundAwards();
   renderAdminHighlightClips();
   renderAdminNotices();
+  renderAdminMedia();
   updateGameFormState();
 }
 const VIEW_PAGE_TITLES = {
@@ -1320,6 +1446,7 @@ const VIEW_PAGE_TITLES = {
   rankings: "Rankings | G.P.F.C - Galera da Pelada",
   rodadas: "Rodadas | G.P.F.C - Galera da Pelada",
   atletas: "Atletas | G.P.F.C - Galera da Pelada",
+  midias: "Mídias | G.P.F.C - Galera da Pelada",
   admin: "Admin | G.P.F.C - Galera da Pelada"
 };
 
@@ -1343,7 +1470,7 @@ function toast(message) {
 }
 
 async function loadRemoteData(showMessage = false) {
-  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult, directorsResult, noticesResult] = await Promise.all([
+  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult, directorsResult, noticesResult, mediaItemsResult, mediaPlayersResult] = await Promise.all([
     supabaseClient.from("players").select("*").order("full_name"),
     supabaseClient.from("games").select("*").order("played_on", { ascending: false }),
     supabaseClient.from("player_game_stats").select("*"),
@@ -1354,7 +1481,9 @@ async function loadRemoteData(showMessage = false) {
     supabaseClient.from("game_goal_events").select("*").order("event_number"),
     supabaseClient.from("round_highlight_clips").select("*").order("created_at", { ascending: false }),
     supabaseClient.from("director_profiles").select("*").order("slot"),
-    supabaseClient.from("bulletin_notices").select("*").order("published_at", { ascending: false })
+    supabaseClient.from("bulletin_notices").select("*").order("published_at", { ascending: false }),
+    supabaseClient.from("media_items").select("*").order("created_at", { ascending: false }),
+    supabaseClient.from("media_item_players").select("*")
   ]);
   const error = playersResult.error || gamesResult.error || statsResult.error || adjustmentsResult.error;
   if (error) { toast(`Não foi possível carregar os dados: ${error.message}`); return; }
@@ -1365,6 +1494,7 @@ async function loadRemoteData(showMessage = false) {
   highlightClipsAvailable = !highlightClipsResult.error;
   directorsAvailable = !directorsResult.error;
   noticesAvailable = !noticesResult.error;
+  mediaAvailable = !mediaItemsResult.error && !mediaPlayersResult.error;
   const gamesById = new Map((gamesResult.data || []).map(game => [game.id, game]));
   const gameStats = new Map((gamesResult.data || []).map(game => [game.id, []]));
   (statsResult.data || []).forEach(stat => gameStats.get(stat.game_id)?.push({
@@ -1378,6 +1508,11 @@ async function loadRemoteData(showMessage = false) {
     xerife: stat.is_xerife ? 1 : 0,
     paredao: stat.is_paredao ? 1 : 0
   }));
+  const mediaPlayersByItem = (mediaPlayersResult.data || []).reduce((all, item) => {
+    all[item.media_id] ||= [];
+    all[item.media_id].push(item.player_id);
+    return all;
+  }, {});
   data = {
     players: (playersResult.data || []).map(player => ({ id: player.id, name: player.full_name, shirtNumber: player.shirt_number, position: player.position, photo: player.photo_url })),
     games: (gamesResult.data || []).map(game => ({ id: game.id, roundId: game.round_id, number: game.game_number, date: game.played_on, place: game.place, home: game.home_team, away: game.away_team, homeScore: game.home_score, awayScore: game.away_score, resultMethod: game.result_method, winnerSide: game.winner_side, status: game.status || "completed", stats: gameStats.get(game.id) || [] })),
@@ -1392,7 +1527,22 @@ async function loadRemoteData(showMessage = false) {
     goalEvents: (goalEventsResult.data || []).map(event => ({ id: event.id, gameId: event.game_id, team: String(event.team_number), scorerId: event.scorer_id, assisterId: event.assister_id, ownGoal: Boolean(event.is_own_goal), number: event.event_number })),
     highlightClips: (highlightClipsResult.data || []).map(clip => ({ id: clip.id, roundId: clip.round_id, playerId: clip.player_id, type: clip.clip_type, instagramUrl: clip.instagram_url, caption: clip.caption, createdAt: clip.created_at })),
     directors: (directorsResult.data || []).map(director => ({ id: director.id, slot: director.slot, name: director.full_name, role: director.role, instagramUrl: director.instagram_url, photo: director.photo_url })),
-    notices: (noticesResult.data || []).map(notice => ({ id: notice.id, title: notice.title, message: notice.message, category: notice.category, pinned: Boolean(notice.is_pinned), status: notice.status, expiresOn: notice.expires_on, publishedAt: notice.published_at }))
+    notices: (noticesResult.data || []).map(notice => ({ id: notice.id, title: notice.title, message: notice.message, category: notice.category, pinned: Boolean(notice.is_pinned), status: notice.status, expiresOn: notice.expires_on, publishedAt: notice.published_at })),
+    mediaItems: (mediaItemsResult.data || []).map(item => ({
+      id: item.id,
+      mediaType: item.media_type,
+      title: item.title,
+      description: item.description,
+      year: item.media_year,
+      category: item.category,
+      roundId: item.round_id,
+      sourceUrl: item.source_url,
+      featured: Boolean(item.is_featured),
+      status: item.status,
+      createdAt: item.created_at,
+      updatedAt: item.updated_at,
+      playerIds: mediaPlayersByItem[item.id] || []
+    }))
   };
   if (activeRoundId && !getRoundById(activeRoundId)) activeRoundId = null;
   if (!activeRoundId) {
@@ -1447,6 +1597,18 @@ async function uploadPlayerPhoto(playerId, file) {
   const { error } = await supabaseClient.storage.from("player-photos").upload(path, file, { cacheControl: "3600", upsert: false });
   if (error) throw error;
   return supabaseClient.storage.from("player-photos").getPublicUrl(path).data.publicUrl;
+}
+async function uploadMediaPhoto(file) {
+  if (!file) return null;
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/avif"];
+  if (!allowedTypes.includes(file.type)) throw new Error("Envie uma foto JPG, PNG, WEBP ou AVIF.");
+  if (file.size > MEDIA_PHOTO_MAX_BYTES) throw new Error("Escolha uma foto de até 5 MB.");
+  const extensionByType = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/avif": "avif" };
+  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${extensionByType[file.type] || "jpg"}`;
+  const path = `${SEASON}/${fileName}`;
+  const { error } = await supabaseClient.storage.from(MEDIA_PHOTO_BUCKET).upload(path, file, { cacheControl: "3600", upsert: false });
+  if (error) throw error;
+  return supabaseClient.storage.from(MEDIA_PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 async function uploadDirectorPhoto(directorId, file) {
   if (!file) return null;
@@ -1821,6 +1983,20 @@ document.querySelector("#position-filters").addEventListener("click", event => {
   if (!button) return;
   selectedPositionFilter = button.dataset.positionFilter;
   renderPlayers(document.querySelector("#player-search").value);
+});
+document.querySelector("#media-filters").addEventListener("click", event => {
+  const button = event.target.closest("[data-media-type]");
+  if (!button) return;
+  selectedMediaType = button.dataset.mediaType;
+  renderMediaGallery();
+});
+document.querySelector("#media-year-filter").addEventListener("change", event => {
+  selectedMediaYear = event.target.value;
+  renderMediaGallery();
+});
+document.querySelector("#media-category-filter").addEventListener("change", event => {
+  selectedMediaCategory = event.target.value;
+  renderMediaGallery();
 });
 document.querySelector("#athletes-grid").addEventListener("click", event => {
   const card = event.target.closest("[data-open-athlete]");
@@ -2276,6 +2452,100 @@ document.querySelector("#notices-admin-list").addEventListener("click", async ev
   if (error) { toast(`Não foi possível atualizar o aviso: ${error.message}`); return; }
   await loadRemoteData();
   toast(archiving ? "Aviso arquivado." : "Aviso reativado no mural.");
+});
+document.querySelector("#media-type").addEventListener("change", updateMediaFormFields);
+document.querySelector("#cancel-media-edit").addEventListener("click", resetMediaForm);
+document.querySelector("#media-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!requireAdmin()) return;
+  if (!mediaAvailable) { toast("Execute a migração 018 no Supabase para ativar a galeria."); return; }
+  const id = document.querySelector("#media-id").value;
+  const existing = data.mediaItems.find(item => item.id === id);
+  const mediaType = document.querySelector("#media-type").value;
+  const title = document.querySelector("#media-title-input").value.trim();
+  const description = document.querySelector("#media-description").value.trim();
+  const year = number(document.querySelector("#media-year").value);
+  const photoFile = document.querySelector("#media-photo").files[0];
+  const externalUrl = document.querySelector("#media-url").value.trim();
+  const playerIds = [...document.querySelectorAll('#media-player-options input[type="checkbox"]:checked')].map(input => input.value);
+  if (title.length < 2 || year < 2016) { toast("Informe um título e um ano válido a partir de 2016."); return; }
+  let sourceUrl = existing?.sourceUrl || "";
+  try {
+    if (mediaType === "photo") {
+      if (photoFile) sourceUrl = await uploadMediaPhoto(photoFile);
+      if (!sourceUrl || (existing && existing.mediaType !== "photo" && !photoFile)) throw new Error("Escolha a foto que será publicada.");
+    } else {
+      if (!isSafeHttpsUrl(externalUrl)) throw new Error("Informe um link de vídeo válido começando com https://.");
+      sourceUrl = externalUrl;
+    }
+  } catch (error) {
+    toast(`Não foi possível preparar a mídia: ${error.message}`);
+    return;
+  }
+  const payload = {
+    media_type: mediaType,
+    title,
+    description,
+    media_year: year,
+    category: document.querySelector("#media-category").value,
+    round_id: document.querySelector("#media-round").value || null,
+    source_url: sourceUrl,
+    is_featured: document.querySelector("#media-featured").checked,
+    status: existing?.status || "active",
+    updated_at: new Date().toISOString()
+  };
+  let mediaId = id;
+  if (id) {
+    const { error } = await supabaseClient.from("media_items").update(payload).eq("id", id);
+    if (error) { toast(`Não foi possível atualizar a mídia: ${error.message}`); return; }
+  } else {
+    const { data: inserted, error } = await supabaseClient.from("media_items").insert(payload).select("id").single();
+    if (error) { toast(`Não foi possível publicar a mídia: ${error.message}`); return; }
+    mediaId = inserted.id;
+  }
+  const { error: deleteLinksError } = await supabaseClient.from("media_item_players").delete().eq("media_id", mediaId);
+  if (deleteLinksError) { toast(`A mídia foi salva, mas os atletas não foram atualizados: ${deleteLinksError.message}`); return; }
+  if (playerIds.length) {
+    const { error: linksError } = await supabaseClient.from("media_item_players").insert(playerIds.map(playerId => ({ media_id: mediaId, player_id: playerId })));
+    if (linksError) { toast(`A mídia foi salva, mas os atletas não foram vinculados: ${linksError.message}`); return; }
+  }
+  resetMediaForm();
+  await loadRemoteData();
+  toast(id ? "Mídia atualizada na galeria." : "Mídia publicada na galeria.");
+});
+document.querySelector("#media-admin-list").addEventListener("click", async event => {
+  const editButton = event.target.closest("[data-edit-media]");
+  const archiveButton = event.target.closest("[data-archive-media]");
+  if (editButton) {
+    if (!requireAdmin()) return;
+    const item = data.mediaItems.find(media => media.id === editButton.dataset.editMedia);
+    if (!item) return;
+    document.querySelector("#media-id").value = item.id;
+    document.querySelector("#media-type").value = item.mediaType;
+    document.querySelector("#media-year").value = item.year;
+    document.querySelector("#media-title-input").value = item.title;
+    document.querySelector("#media-description").value = item.description || "";
+    document.querySelector("#media-category").value = item.category;
+    document.querySelector("#media-round").value = item.roundId || "";
+    document.querySelector("#media-url").value = item.mediaType === "video" ? item.sourceUrl : "";
+    document.querySelector("#media-photo").value = "";
+    document.querySelector("#media-featured").checked = item.featured;
+    document.querySelectorAll('#media-player-options input[type="checkbox"]').forEach(input => input.checked = (item.playerIds || []).includes(input.value));
+    document.querySelector("#save-media").innerHTML = `Salvar alterações <span>→</span>`;
+    document.querySelector("#cancel-media-edit").hidden = false;
+    updateMediaFormFields();
+    document.querySelector("#media-form").scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  if (!archiveButton || !requireAdmin()) return;
+  const item = data.mediaItems.find(media => media.id === archiveButton.dataset.archiveMedia);
+  if (!item) return;
+  const archiving = item.status !== "archived";
+  if (!confirm(archiving ? "Arquivar esta mídia? Ela deixará de aparecer para o público." : "Reativar esta mídia na galeria?")) return;
+  const { error } = await supabaseClient.from("media_items").update({ status: archiving ? "archived" : "active", updated_at: new Date().toISOString() }).eq("id", item.id);
+  if (error) { toast(`Não foi possível atualizar a mídia: ${error.message}`); return; }
+  await loadRemoteData();
+  toast(archiving ? "Mídia arquivada." : "Mídia reativada na galeria.");
 });
 async function submitRodizioGame() {
   if (!requireAdmin()) return;
