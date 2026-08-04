@@ -392,10 +392,21 @@
             <div id="hall-admin-list" class="hall-admin-list"></div>
           </article>
 
+          <article class="admin-card monthly-fees-admin-card">
+            <div class="admin-card-heading"><span class="step">09</span><div><h2>Mensalidades</h2><p>Controle o pagamento mensal sem expor informações financeiras ao público.</p></div></div>
+            <div class="monthly-fees-toolbar">
+              <label>Mês de referência<input id="monthly-fee-month" type="month" /></label>
+              <label>Filtrar situação<select id="monthly-fee-filter"><option value="all">Todos</option><option value="paid">Pagos</option><option value="pending">Pendentes</option><option value="exempt">Isentos</option></select></label>
+            </div>
+            <div class="monthly-fees-rule"><strong>Regra da confirmação pública</strong><p>No primeiro sábado do mês, todos podem confirmar. A partir do segundo sábado, somente atletas pagos ou isentos podem marcar “Vou participar”. Um administrador ainda pode confirmar manualmente uma exceção.</p></div>
+            <div id="monthly-fees-summary" class="monthly-fees-summary"></div>
+            <div id="monthly-fees-list" class="monthly-fees-list"></div>
+          </article>
+
           <article class="admin-card audit-admin-card">
-            <div class="admin-card-heading"><span class="step">09</span><div><h2>Atividades dos administradores</h2><p>Acompanhe quem alterou atletas, rodadas, estatísticas e avisos.</p></div></div>
+            <div class="admin-card-heading"><span class="step">10</span><div><h2>Atividades dos administradores</h2><p>Acompanhe quem alterou atletas, rodadas, estatísticas, mensalidades e avisos.</p></div></div>
             <div class="audit-toolbar">
-              <label>Área<select id="audit-entity-filter"><option value="all">Todas</option><option value="players">Atletas</option><option value="rounds">Rodadas e confrontos</option><option value="statistics">Estatísticas e presença</option><option value="notices">Avisos</option></select></label>
+              <label>Área<select id="audit-entity-filter"><option value="all">Todas</option><option value="players">Atletas</option><option value="rounds">Rodadas e confrontos</option><option value="statistics">Estatísticas e presença</option><option value="financial">Mensalidades</option><option value="notices">Avisos</option></select></label>
               <label>Ação<select id="audit-action-filter"><option value="all">Todas</option><option value="INSERT">Criações</option><option value="UPDATE">Alterações</option><option value="DELETE">Exclusões</option></select></label>
               <button id="refresh-audit-log" class="button secondary" type="button">Atualizar histórico</button>
             </div>
@@ -404,7 +415,7 @@
           </article>
 
           <article class="admin-card export-admin-card">
-            <div class="admin-card-heading"><span class="step">10</span><div><h2>Backup e exportação</h2><p>Baixe os dados da temporada para guardar uma cópia segura ou abrir no Excel.</p></div></div>
+            <div class="admin-card-heading"><span class="step">11</span><div><h2>Backup e exportação</h2><p>Baixe os dados da temporada para guardar uma cópia segura ou abrir no Excel.</p></div></div>
             <div class="export-toolbar">
               <label>Conteúdo do CSV
                 <select id="export-data-type">
@@ -413,6 +424,7 @@
                   <option value="games">Confrontos</option>
                   <option value="attendance">Presença</option>
                   <option value="goals">Gols e assistências</option>
+                  <option value="fees">Mensalidades</option>
                 </select>
               </label>
               <button id="export-csv" class="button primary" type="button">Exportar CSV <span>↓</span></button>
@@ -423,7 +435,7 @@
           </article>
 
           <article class="admin-card adjustment-card">
-            <div class="admin-card-heading"><span class="step">11</span><div><h2>Saldo histórico</h2><p>Informe o que já aconteceu em 2026 antes de usar o site nas rodadas de sábado.</p></div></div>
+            <div class="admin-card-heading"><span class="step">12</span><div><h2>Saldo histórico</h2><p>Informe o que já aconteceu em 2026 antes de usar o site nas rodadas de sábado.</p></div></div>
             <form id="adjustment-form" class="form-stack">
               <label>Atleta<select id="adjustment-player" required></select></label>
               <div class="adjustment-fields">
