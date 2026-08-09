@@ -3,7 +3,9 @@ const supabaseClient = window.supabase.createClient(
   window.SUPABASE_PUBLISHABLE_KEY
 );
 
-const SEASON = 2026;
+const DEFAULT_SEASON = new Date().getFullYear();
+const SELECTED_SEASON_STORAGE_KEY = "gpfc-selected-season";
+let SEASON = Number(localStorage.getItem(SELECTED_SEASON_STORAGE_KEY)) || DEFAULT_SEASON;
 const LAST_HISTORICAL_ROUND = 14;
 const DEFAULT_VENUE_NAME = "CT Caxangá";
 const DEFAULT_VENUE_MAP_URL = "https://www.google.com/maps/dir/?api=1&destination=-8.033411,-34.9597396";
@@ -63,7 +65,8 @@ let goalEventCounter = 0;
 let manualScoreMode = false;
 let attendanceFilter = "all";
 let attendanceDirty = false;
-let selectedMonthlyFeeMonth = new Date().toISOString().slice(0, 7);
+let selectedMonthlyFeeMonth = `${SEASON}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+let availableSeasons = [SEASON];
 let selectedMonthlyFeeStatus = "all";
 const PUBLIC_ATTENDANCE_PLAYER_KEY = "gpfc-public-attendance-player";
 let publicAttendancePlayerId = localStorage.getItem(PUBLIC_ATTENDANCE_PLAYER_KEY) || "";
@@ -79,6 +82,13 @@ let sharedStatsArtTitle = "";
 let sharedStatsArtText = "";
 
 function number(value) { return Number(value || 0); }
+function isValidSeason(value) {
+  const season = Number(value);
+  return Number.isInteger(season) && season >= 2016 && season <= 2100;
+}
+function seasonReferenceMonth() {
+  return `${SEASON}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+}
 function initials(player) {
   return (player?.name || "GP").split(/\s+/).slice(0, 2).map(word => word[0]).join("").toUpperCase();
 }
@@ -301,7 +311,8 @@ function roundHighlightPlayers(roundId) {
   return [...players.values()].sort((a, b) => displayName(a).localeCompare(displayName(b), "pt-BR"));
 }
 function getNextRoundNumber() {
-  return Math.max(LAST_HISTORICAL_ROUND, ...data.rounds.map(round => number(round.number))) + 1;
+  const historicalLastRound = SEASON === 2026 ? LAST_HISTORICAL_ROUND : 0;
+  return Math.max(historicalLastRound, ...data.rounds.map(round => number(round.number))) + 1;
 }
 function roundLabel(round) { return `Rodada ${round?.number ?? round?.round_number}`; }
 function roundStatusLabel(round) { return round.status === "completed" ? "Finalizada" : "Em edição"; }
@@ -424,7 +435,8 @@ function renderDirectors() {
 function renderHome() {
   const stats = getStats();
   const latest = getLatestGame();
-  const latestRoundNumber = Math.max(LAST_HISTORICAL_ROUND, ...data.rounds.map(round => number(round.number)));
+  const historicalLastRound = SEASON === 2026 ? LAST_HISTORICAL_ROUND : 0;
+  const latestRoundNumber = Math.max(historicalLastRound, ...data.rounds.map(round => number(round.number)));
   document.querySelector("#total-games").textContent = latestRoundNumber;
   document.querySelector("#total-monthly-players").textContent = stats.filter(item => !isGoalkeeper(item.player)).length;
   document.querySelector("#total-goalkeepers").textContent = stats.filter(item => isGoalkeeper(item.player)).length;
@@ -579,7 +591,7 @@ function renderPlayers(filter = "") {
   const text = filter.trim().toLocaleLowerCase("pt-BR");
   const allPlayers = getStats();
   const goalkeepers = allPlayers.filter(item => isGoalkeeper(item.player)).length;
-  document.querySelector("#roster-summary").textContent = `${allPlayers.length} ${allPlayers.length === 1 ? "atleta" : "atletas"} no elenco, incluindo ${goalkeepers} ${goalkeepers === 1 ? "goleiro" : "goleiros"} na temporada 2026.`;
+  document.querySelector("#roster-summary").textContent = `${allPlayers.length} ${allPlayers.length === 1 ? "atleta" : "atletas"} no elenco, incluindo ${goalkeepers} ${goalkeepers === 1 ? "goleiro" : "goleiros"} na temporada ${SEASON}.`;
   document.querySelectorAll("[data-position-filter]").forEach(button => button.classList.toggle("active", button.dataset.positionFilter === selectedPositionFilter));
   const players = allPlayers.filter(item => positionMatchesFilter(item.player, selectedPositionFilter) && (!text || `${item.player.name} ${item.player.shirtNumber}`.toLocaleLowerCase("pt-BR").includes(text))).sort((a, b) => displayName(a.player).localeCompare(displayName(b.player)));
   const leaders = leaderSets(allPlayers);
@@ -590,7 +602,7 @@ function renderPlayers(filter = "") {
     const attendanceSummary = historyTotal
       ? `Presença: ${history.present} foi · ${history.absent} faltas · ${history.unknown} dúvidas`
       : "Histórico de presença será exibido nas próximas rodadas.";
-    return `<button class="athlete-card athlete-card-button" data-open-athlete="${item.player.id}" type="button" aria-label="Abrir perfil de ${escapeHtml(displayName(item.player))}"><div class="card-image">${avatar(item.player)}</div><div class="card-top"><span>GP • 2026</span><span class="athlete-number">#${shirtNumber(item.player)}</span></div>${leaderBadgesMarkup(item.player.id, leaders)}<div class="card-bottom"><h2>${escapeHtml(displayName(item.player))}</h2><p>${escapeHtml(item.player.position)}</p><div class="card-games"><strong>${item.games} ${item.games === 1 ? "jogo disputado" : "jogos disputados"}</strong><small>${attendanceSummary}</small></div>${cardStatsMarkup(item)}</div></button>`;
+    return `<button class="athlete-card athlete-card-button" data-open-athlete="${item.player.id}" type="button" aria-label="Abrir perfil de ${escapeHtml(displayName(item.player))}"><div class="card-image">${avatar(item.player)}</div><div class="card-top"><span>GP • ${SEASON}</span><span class="athlete-number">#${shirtNumber(item.player)}</span></div>${leaderBadgesMarkup(item.player.id, leaders)}<div class="card-bottom"><h2>${escapeHtml(displayName(item.player))}</h2><p>${escapeHtml(item.player.position)}</p><div class="card-games"><strong>${item.games} ${item.games === 1 ? "jogo disputado" : "jogos disputados"}</strong><small>${attendanceSummary}</small></div>${cardStatsMarkup(item)}</div></button>`;
   }).join("") || `<div class="empty-state">Nenhum atleta cadastrado ainda.</div>`;
 }
 function teamOptions(selected = "") {
@@ -2384,7 +2396,34 @@ function updateGameFormState() {
   document.querySelector("#cancel-game-edit").hidden = !editing;
   syncGameFormWithRound();
 }
+function renderSeasonInterface() {
+  const currentYear = new Date().getFullYear();
+  const years = [...new Set([...availableSeasons, SEASON, currentYear, currentYear + 1])]
+    .filter(isValidSeason)
+    .sort((a, b) => b - a);
+  const selector = document.querySelector("#season-selector");
+  if (selector) {
+    selector.innerHTML = years.map(year => `<button class="season-option${year === SEASON ? " active" : ""}" type="button" data-season="${year}" aria-pressed="${year === SEASON}">${year}</button>`).join("");
+  }
+  const labels = {
+    "#hero-season-copy": `Veja todos os rankings da temporada ${SEASON}: artilheiro, garçom, craque, xerife e paredão.`,
+    "#total-games-season": `em ${SEASON}`,
+    "#records-season-title": `Recordes de ${SEASON}`,
+    "#rounds-season-badge": `● TEMPORADA ${SEASON}`,
+    "#round-history-season": `TEMPORADA ${SEASON}`,
+    "#rankings-season": `TEMPORADA ${SEASON}`,
+    "#historical-balance-help": `Informe o que já aconteceu em ${SEASON} antes de usar o site nas rodadas de sábado.`,
+    "#player-edit-season-help": `Você pode corrigir os dados e definir o total desejado para a temporada ${SEASON}.`,
+    "#edit-player-season-total": `Totais de ${SEASON}`
+  };
+  Object.entries(labels).forEach(([selectorText, label]) => {
+    const element = document.querySelector(selectorText);
+    if (element) element.textContent = label;
+  });
+}
+
 function renderAll() {
+  renderSeasonInterface();
   renderDirectors();
   renderHome();
   renderHomeHighlights();
@@ -2443,7 +2482,7 @@ function toast(message) {
 }
 
 async function loadRemoteData(showMessage = false) {
-  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult, directorsResult, noticesResult, mediaItemsResult, mediaPlayersResult, hallAwardsResult, monthlyFeesResult, publicRegularizationResult, auditLogsResult] = await Promise.all([
+  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult, directorsResult, noticesResult, mediaItemsResult, mediaPlayersResult, hallAwardsResult, monthlyFeesResult, publicRegularizationResult, auditLogsResult, seasonRoundsResult, seasonAdjustmentsResult] = await Promise.all([
     supabaseClient.from("players").select("*").order("full_name"),
     supabaseClient.from("games").select("*").order("played_on", { ascending: false }),
     supabaseClient.from("player_game_stats").select("*"),
@@ -2464,7 +2503,9 @@ async function loadRemoteData(showMessage = false) {
     supabaseClient.rpc("public_player_regularization", { p_season: SEASON }),
     isAdmin
       ? supabaseClient.from("admin_activity_logs").select("*").order("created_at", { ascending: false }).limit(150)
-      : Promise.resolve({ data: [], error: null })
+      : Promise.resolve({ data: [], error: null }),
+    supabaseClient.from("rounds").select("season"),
+    supabaseClient.from("player_season_adjustments").select("season")
   ]);
   const error = playersResult.error || gamesResult.error || statsResult.error || adjustmentsResult.error;
   if (error) { toast(`Não foi possível carregar os dados: ${error.message}`); return; }
@@ -2480,8 +2521,18 @@ async function loadRemoteData(showMessage = false) {
   monthlyFeesAvailable = !monthlyFeesResult.error;
   publicRegularizationAvailable = !publicRegularizationResult.error;
   auditLogsAvailable = !auditLogsResult.error;
-  const gamesById = new Map((gamesResult.data || []).map(game => [game.id, game]));
-  const gameStats = new Map((gamesResult.data || []).map(game => [game.id, []]));
+  availableSeasons = [...new Set([
+    SEASON,
+    new Date().getFullYear(),
+    new Date().getFullYear() + 1,
+    ...(seasonRoundsResult.data || []).map(round => number(round.season)),
+    ...(seasonAdjustmentsResult.data || []).map(adjustment => number(adjustment.season))
+  ])].filter(isValidSeason);
+  const selectedRoundIds = new Set((roundsResult.data || []).map(round => round.id));
+  const selectedGames = (gamesResult.data || []).filter(game => selectedRoundIds.has(game.round_id));
+  const selectedGameIds = new Set(selectedGames.map(game => game.id));
+  const gamesById = new Map(selectedGames.map(game => [game.id, game]));
+  const gameStats = new Map(selectedGames.map(game => [game.id, []]));
   (statsResult.data || []).forEach(stat => gameStats.get(stat.game_id)?.push({
     playerId: stat.player_id,
     team: stat.team_number ? String(stat.team_number) : (stat.team_side === "home" ? gameTeamNumber(gamesById.get(stat.game_id), "home") : stat.team_side === "away" ? gameTeamNumber(gamesById.get(stat.game_id), "away") : ""),
@@ -2500,17 +2551,17 @@ async function loadRemoteData(showMessage = false) {
   }, {});
   data = {
     players: (playersResult.data || []).map(player => ({ id: player.id, name: player.full_name, shirtNumber: player.shirt_number, position: player.position, photo: player.photo_url })),
-    games: (gamesResult.data || []).map(game => ({ id: game.id, roundId: game.round_id, number: game.game_number, date: game.played_on, place: game.place, home: game.home_team, away: game.away_team, homeScore: game.home_score, awayScore: game.away_score, resultMethod: game.result_method, winnerSide: game.winner_side, status: game.status || "completed", stats: gameStats.get(game.id) || [] })),
+    games: selectedGames.map(game => ({ id: game.id, roundId: game.round_id, number: game.game_number, date: game.played_on, place: game.place, home: game.home_team, away: game.away_team, homeScore: game.home_score, awayScore: game.away_score, resultMethod: game.result_method, winnerSide: game.winner_side, status: game.status || "completed", stats: gameStats.get(game.id) || [] })),
     rounds: (roundsResult.data || []).map(round => ({ id: round.id, number: round.round_number, date: round.played_on, place: round.place, status: round.status, attendanceClosed: Boolean(round.attendance_closed) })),
     adjustments: Object.fromEntries((adjustmentsResult.data || []).map(adjustment => [adjustment.player_id, adjustment])),
-    attendance: (attendanceResult.data || []).reduce((all, item) => {
+    attendance: (attendanceResult.data || []).filter(item => selectedRoundIds.has(item.round_id)).reduce((all, item) => {
       all[item.round_id] ||= {};
       all[item.round_id][item.player_id] = item.status;
       return all;
     }, {}),
-    roundAwards: (awardsResult.data || []).map(award => ({ roundId: award.round_id, playerId: award.player_id, category: award.category })),
-    goalEvents: (goalEventsResult.data || []).map(event => ({ id: event.id, gameId: event.game_id, team: String(event.team_number), scorerId: event.scorer_id, assisterId: event.assister_id, ownGoal: Boolean(event.is_own_goal), number: event.event_number })),
-    highlightClips: (highlightClipsResult.data || []).map(clip => ({ id: clip.id, roundId: clip.round_id, playerId: clip.player_id, type: clip.clip_type, instagramUrl: clip.instagram_url, caption: clip.caption, createdAt: clip.created_at })),
+    roundAwards: (awardsResult.data || []).filter(award => selectedRoundIds.has(award.round_id)).map(award => ({ roundId: award.round_id, playerId: award.player_id, category: award.category })),
+    goalEvents: (goalEventsResult.data || []).filter(event => selectedGameIds.has(event.game_id)).map(event => ({ id: event.id, gameId: event.game_id, team: String(event.team_number), scorerId: event.scorer_id, assisterId: event.assister_id, ownGoal: Boolean(event.is_own_goal), number: event.event_number })),
+    highlightClips: (highlightClipsResult.data || []).filter(clip => selectedRoundIds.has(clip.round_id)).map(clip => ({ id: clip.id, roundId: clip.round_id, playerId: clip.player_id, type: clip.clip_type, instagramUrl: clip.instagram_url, caption: clip.caption, createdAt: clip.created_at })),
     directors: (directorsResult.data || []).map(director => ({ id: director.id, slot: director.slot, name: director.full_name, role: director.role, instagramUrl: director.instagram_url, photo: director.photo_url })),
     notices: (noticesResult.data || []).map(notice => ({ id: notice.id, title: notice.title, message: notice.message, category: notice.category, pinned: Boolean(notice.is_pinned), status: notice.status, expiresOn: notice.expires_on, publishedAt: notice.published_at })),
     mediaItems: (mediaItemsResult.data || []).map(item => ({
@@ -2994,6 +3045,20 @@ document.querySelector("#goal-events").addEventListener("change", event => {
   renderGoalEvents();
 });
 document.querySelectorAll("[data-view-target]").forEach(button => button.addEventListener("click", () => showView(button.dataset.viewTarget)));
+
+document.querySelector("#season-selector")?.addEventListener("click", async event => {
+  const button = event.target.closest("[data-season]");
+  const selectedSeason = number(button?.dataset.season);
+  if (!button || !isValidSeason(selectedSeason) || selectedSeason === SEASON) return;
+  SEASON = selectedSeason;
+  localStorage.setItem(SELECTED_SEASON_STORAGE_KEY, String(SEASON));
+  selectedMonthlyFeeMonth = seasonReferenceMonth();
+  activeRoundId = null;
+  editingGameId = null;
+  expandedPublicRoundIds = new Set();
+  await loadRemoteData();
+  toast(`Temporada ${SEASON} selecionada.`);
+});
 
 document.querySelector("#home-round-card").addEventListener("click", event => {
   const button = event.target.closest("[data-view-target]");
