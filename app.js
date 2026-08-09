@@ -72,6 +72,11 @@ let publicAttendanceRoundId = "";
 let sharedRoundId = "";
 let sharedRoundBlob = null;
 let sharedRoundObjectUrl = "";
+let sharedStatsArtBlob = null;
+let sharedStatsArtObjectUrl = "";
+let sharedStatsArtFilename = "";
+let sharedStatsArtTitle = "";
+let sharedStatsArtText = "";
 
 function number(value) { return Number(value || 0); }
 function initials(player) {
@@ -503,6 +508,13 @@ function renderRanking() {
   document.querySelector("#ranking-list").innerHTML = items.length ? items.map((item, index) =>
     `<article class="rank-row"><span class="rank-position">${String(index + 1).padStart(2, "0")}</span>${avatar(item.player)}<div class="rank-player"><strong>${escapeHtml(displayName(item.player))}</strong><small>#${shirtNumber(item.player)} · ${escapeHtml(item.player.position)} · ${selectedRanking === "presence" ? `${item.absent} faltas` : `${item.games} ${item.games === 1 ? "jogo" : "jogos"}`}</small></div><span class="rank-meta">${selectedRanking === "presence" ? `${item.present} confirmadas · ${item.unknown} dúvidas` : `${item.goals} gols · ${item.assists} assist.`}</span>${rankingMovementMarkup(item.player.id, index + 1, previousPositions, referenceRound)}<span class="rank-value">${selectedRanking === "presence" ? item.present : item[selectedRanking]}<small>${(selectedRanking === "presence" ? item.present : item[selectedRanking]) === 1 ? details.singular : details.plural}</small></span></article>`
   ).join("") : `<div class="empty-state">Ainda não existem dados nesta categoria.</div>`;
+  const shareButton = document.querySelector("#generate-ranking-art");
+  if (shareButton) {
+    const canShareRanking = selectedRanking !== "presence" && items.length > 0;
+    shareButton.hidden = selectedRanking === "presence";
+    shareButton.disabled = !canShareRanking;
+    shareButton.textContent = `Gerar Top 10: ${rankingDetails[selectedRanking].title}`;
+  }
   renderCompleteRanking(getStats());
 }
 function renderCompleteRanking(stats) {
@@ -962,6 +974,13 @@ function shareHighlightNames(items) {
   const names = items.filter(Boolean).map(item => displayName(item.player || item));
   return names.length ? names.join(" · ") : "Aguardando definição";
 }
+function shareStatHighlight(items, singular, plural) {
+  const values = items.filter(Boolean).map(item => {
+    const total = number(item.value);
+    return `${displayName(item.player || item)} · ${total} ${total === 1 ? singular : plural}`;
+  });
+  return values.length ? values.join(" · ") : "Aguardando definição";
+}
 async function createRoundShareImage(roundId) {
   const round = getRoundById(roundId);
   if (!round) throw new Error("Rodada não encontrada.");
@@ -1091,6 +1110,8 @@ async function createRoundShareImage(roundId) {
     ["XERIFE", shareHighlightNames(getRoundAwardPlayers(round.id, "xerife"))],
     ["PAREDÃO", shareHighlightNames(getRoundAwardPlayers(round.id, "paredao"))]
   ];
+  highlights[0][1] = shareStatHighlight(getRoundStatLeaders(round.id, "goals"), "gol", "gols");
+  highlights[1][1] = shareStatHighlight(getRoundStatLeaders(round.id, "assists"), "assistência", "assistências");
   const highlightStartY = leaderY + 126;
   context.fillStyle = "#4fd7ff";
   context.font = "800 25px 'Barlow Condensed', sans-serif";
@@ -1121,6 +1142,230 @@ async function createRoundShareImage(roundId) {
   context.textAlign = "left";
 
   return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("Não foi possível gerar a imagem.")), "image/png", 0.96));
+}
+async function drawStatsShareHeader(context, eyebrow, title, subtitle) {
+  const background = context.createLinearGradient(0, 0, ROUND_SHARE_WIDTH, ROUND_SHARE_HEIGHT);
+  background.addColorStop(0, "#020713");
+  background.addColorStop(0.55, "#061a3a");
+  background.addColorStop(1, "#082f67");
+  context.fillStyle = background;
+  context.fillRect(0, 0, ROUND_SHARE_WIDTH, ROUND_SHARE_HEIGHT);
+  const glow = context.createRadialGradient(850, 190, 20, 850, 190, 560);
+  glow.addColorStop(0, "rgba(36, 184, 255, .42)");
+  glow.addColorStop(1, "rgba(36, 184, 255, 0)");
+  context.fillStyle = glow;
+  context.fillRect(0, 0, ROUND_SHARE_WIDTH, ROUND_SHARE_HEIGHT);
+  try {
+    const shield = await loadCanvasImage("assets/escudo-moderno-gpfc.webp");
+    context.save();
+    context.globalAlpha = 0.1;
+    context.drawImage(shield, 440, 85, 700, 700);
+    context.restore();
+    context.drawImage(shield, 66, 54, 116, 116);
+  } catch (error) {
+    console.warn("Não foi possível adicionar o escudo à arte.", error);
+  }
+  context.fillStyle = "#f4f8ff";
+  context.font = "800 38px 'Barlow Condensed', sans-serif";
+  context.fillText("G.P.F.C", 210, 94);
+  context.fillStyle = "#55d8ff";
+  context.font = "700 19px 'DM Sans', sans-serif";
+  context.fillText("GALERA DA PELADA · DESDE 2016", 210, 130);
+  context.strokeStyle = "rgba(83, 209, 255, .48)";
+  context.lineWidth = 2;
+  context.beginPath();
+  context.moveTo(66, 194);
+  context.lineTo(1014, 194);
+  context.stroke();
+  context.fillStyle = "#55d8ff";
+  context.font = "800 24px 'Barlow Condensed', sans-serif";
+  context.fillText(eyebrow, 66, 245);
+  context.fillStyle = "#ffffff";
+  context.font = "800 66px 'Barlow Condensed', sans-serif";
+  context.fillText(title, 66, 315);
+  context.fillStyle = "#c4d4e9";
+  context.font = "600 22px 'DM Sans', sans-serif";
+  context.fillText(canvasFitText(context, subtitle, 900), 66, 354);
+}
+function drawStatsShareFooter(context) {
+  context.textAlign = "left";
+  context.fillStyle = "#5fdcff";
+  context.font = "700 18px 'DM Sans', sans-serif";
+  context.fillText("@galeradapelada2016", 66, 1310);
+  context.textAlign = "right";
+  context.fillStyle = "#91a9c8";
+  context.fillText("FUTEBOL · AMIZADE · RESENHA", 1014, 1310);
+  context.textAlign = "left";
+}
+function canvasBlob(canvas) {
+  return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("Não foi possível gerar a imagem.")), "image/png", 0.96));
+}
+async function createDailyStatsShareImage(roundId) {
+  const round = getRoundById(roundId);
+  const players = roundPlayerStats(roundId);
+  if (!round || !players.length) throw new Error("Ainda não existem gols ou assistências nesta rodada.");
+  const canvas = document.createElement("canvas");
+  canvas.width = ROUND_SHARE_WIDTH;
+  canvas.height = ROUND_SHARE_HEIGHT;
+  const context = canvas.getContext("2d");
+  await drawStatsShareHeader(context, `RODADA ${round.number} · ESTATÍSTICAS DO DIA`, "GOLS E ASSISTÊNCIAS", `${formatDate(round.date)} · ${round.place || DEFAULT_VENUE_NAME}`);
+  const columns = players.length > 18 ? 3 : 2;
+  const rows = Math.ceil(players.length / columns);
+  const gap = 16;
+  const cardWidth = (948 - gap * (columns - 1)) / columns;
+  const startY = 405;
+  const maxHeight = 820;
+  const cardHeight = Math.max(52, Math.min(76, (maxHeight - gap * Math.max(0, rows - 1)) / rows));
+  players.forEach((item, index) => {
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    const x = 66 + column * (cardWidth + gap);
+    const y = startY + row * (cardHeight + gap);
+    context.fillStyle = index % 2 ? "rgba(4, 31, 67, .88)" : "rgba(7, 43, 88, .84)";
+    canvasRoundRect(context, x, y, cardWidth, cardHeight, 12);
+    context.fill();
+    context.fillStyle = "#f5f9ff";
+    context.font = `${cardHeight > 60 ? "700 21px" : "700 17px"} 'DM Sans', sans-serif`;
+    context.fillText(canvasFitText(context, displayName(item.player), cardWidth - 158), x + 18, y + cardHeight / 2 + 7);
+    context.textAlign = "right";
+    context.fillStyle = "#57ddff";
+    context.font = `${cardHeight > 60 ? "800 24px" : "800 20px"} 'Barlow Condensed', sans-serif`;
+    context.fillText(`G ${item.goals}`, x + cardWidth - 82, y + cardHeight / 2 + 7);
+    context.fillStyle = "#a4e8ff";
+    context.fillText(`A ${item.assists}`, x + cardWidth - 18, y + cardHeight / 2 + 7);
+    context.textAlign = "left";
+  });
+  drawStatsShareFooter(context);
+  return canvasBlob(canvas);
+}
+function rankingShareMeta(metric) {
+  return {
+    goals: { title: "ARTILHARIA", unit: "GOLS", filename: "artilharia" },
+    assists: { title: "GARÇOM", unit: "ASSISTÊNCIAS", filename: "garcom" },
+    craque: { title: "CRAQUE", unit: "VEZES", filename: "craque" },
+    xerife: { title: "XERIFE", unit: "VEZES", filename: "xerife" },
+    paredao: { title: "PAREDÃO", unit: "VEZES", filename: "paredao" }
+  }[metric];
+}
+async function createRankingShareImage(metric) {
+  const meta = rankingShareMeta(metric);
+  const players = getRankingItems(metric).slice(0, 10);
+  if (!meta || !players.length) throw new Error("Ainda não existem dados neste ranking.");
+  const canvas = document.createElement("canvas");
+  canvas.width = ROUND_SHARE_WIDTH;
+  canvas.height = ROUND_SHARE_HEIGHT;
+  const context = canvas.getContext("2d");
+  await drawStatsShareHeader(context, `TEMPORADA ${SEASON} · TOP 10`, meta.title, "Ranking anual atualizado da Galera da Pelada");
+  context.fillStyle = "#50d9ff";
+  context.font = "800 23px 'Barlow Condensed', sans-serif";
+  context.fillText("POSIÇÃO                         ATLETA", 90, 414);
+  context.textAlign = "right";
+  context.fillText(meta.unit, 988, 414);
+  context.textAlign = "left";
+  players.forEach((item, index) => {
+    const y = 440 + index * 77;
+    context.fillStyle = index < 3 ? "rgba(13, 92, 156, .72)" : "rgba(4, 31, 67, .88)";
+    canvasRoundRect(context, 66, y, 948, 62, 12);
+    context.fill();
+    context.fillStyle = index === 0 ? "#ffd66a" : "#57ddff";
+    context.font = "800 32px 'Barlow Condensed', sans-serif";
+    context.fillText(String(index + 1).padStart(2, "0"), 92, y + 41);
+    context.fillStyle = "#f5f9ff";
+    context.font = "700 25px 'DM Sans', sans-serif";
+    context.fillText(canvasFitText(context, displayName(item.player), 620), 184, y + 39);
+    context.textAlign = "right";
+    context.fillStyle = "#62ddff";
+    context.font = "800 35px 'Barlow Condensed', sans-serif";
+    context.fillText(String(number(item[metric])), 950, y + 41);
+    context.fillStyle = "#b9d5ec";
+    context.font = "700 15px 'DM Sans', sans-serif";
+    context.fillText(meta.unit, 990, y + 40);
+    context.textAlign = "left";
+  });
+  drawStatsShareFooter(context);
+  return canvasBlob(canvas);
+}
+function closeShareStatsModal() {
+  document.querySelector("#share-stats-modal").hidden = true;
+  if (sharedStatsArtObjectUrl) URL.revokeObjectURL(sharedStatsArtObjectUrl);
+  sharedStatsArtObjectUrl = "";
+  sharedStatsArtBlob = null;
+  sharedStatsArtFilename = "";
+  sharedStatsArtTitle = "";
+  sharedStatsArtText = "";
+}
+async function openStatsShareModal({ title, filename, text, createImage }) {
+  const modal = document.querySelector("#share-stats-modal");
+  const preview = document.querySelector("#share-stats-preview");
+  const titleElement = document.querySelector("#share-stats-title");
+  const downloadButton = document.querySelector("#download-stats-image");
+  const shareButton = document.querySelector("#share-stats-image");
+  if (sharedStatsArtObjectUrl) URL.revokeObjectURL(sharedStatsArtObjectUrl);
+  sharedStatsArtObjectUrl = "";
+  sharedStatsArtBlob = null;
+  sharedStatsArtFilename = filename;
+  sharedStatsArtTitle = title;
+  sharedStatsArtText = text;
+  titleElement.textContent = title;
+  preview.innerHTML = "<span>Gerando imagem...</span>";
+  downloadButton.disabled = true;
+  shareButton.disabled = true;
+  modal.hidden = false;
+  try {
+    await document.fonts?.ready;
+    sharedStatsArtBlob = await createImage();
+    sharedStatsArtObjectUrl = URL.createObjectURL(sharedStatsArtBlob);
+    preview.innerHTML = `<img src="${sharedStatsArtObjectUrl}" alt="Prévia: ${escapeHtml(title)}" />`;
+    downloadButton.disabled = false;
+    shareButton.disabled = false;
+  } catch (error) {
+    console.error(error);
+    preview.innerHTML = "<span>Não foi possível gerar a imagem. Tente novamente.</span>";
+    toast(error.message || "Não foi possível gerar a imagem.");
+  }
+}
+function openDailyStatsShareModal(roundId) {
+  const round = getRoundById(roundId);
+  if (!round) return;
+  openStatsShareModal({
+    title: `Estatísticas da ${roundLabel(round)}`,
+    filename: `gpfc-estatisticas-rodada-${round.number}.png`,
+    text: `Gols e assistências da ${roundLabel(round)} da Galera da Pelada.`,
+    createImage: () => createDailyStatsShareImage(roundId)
+  });
+}
+function openRankingShareModal(metric) {
+  const meta = rankingShareMeta(metric);
+  if (!meta) return;
+  openStatsShareModal({
+    title: `Top 10 — ${rankingDetails[metric].title}`,
+    filename: `gpfc-top-10-${meta.filename}-${SEASON}.png`,
+    text: `Top 10 ${meta.title.toLowerCase()} da temporada ${SEASON} do G.P.F.C.`,
+    createImage: () => createRankingShareImage(metric)
+  });
+}
+function downloadStatsShareImage() {
+  if (!sharedStatsArtBlob || !sharedStatsArtObjectUrl) return;
+  const link = document.createElement("a");
+  link.href = sharedStatsArtObjectUrl;
+  link.download = sharedStatsArtFilename;
+  link.click();
+}
+async function shareStatsShareImage() {
+  if (!sharedStatsArtBlob) return;
+  const file = new File([sharedStatsArtBlob], sharedStatsArtFilename, { type: "image/png" });
+  const shareData = { title: sharedStatsArtTitle, text: sharedStatsArtText, files: [file] };
+  if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+    try {
+      await navigator.share(shareData);
+      return;
+    } catch (error) {
+      if (error.name === "AbortError") return;
+      console.warn("Compartilhamento nativo indisponível.", error);
+    }
+  }
+  downloadStatsShareImage();
+  toast("Imagem baixada. Agora você pode enviá-la pelo aplicativo desejado.");
 }
 function closeShareRoundModal() {
   document.querySelector("#share-round-modal").hidden = true;
@@ -1190,7 +1435,7 @@ function roundGamesSummaryMarkup(roundId, compact = false) {
   const leaderWins = highestWins === 1 ? "1 vitória" : `${highestWins} vitórias`;
   return `<section class="round-games-summary ${compact ? "compact" : ""}"><div class="round-games-summary-heading"><div><p class="eyebrow">JOGOS DA RODADA ${round.number}</p><h3>Vitórias e derrotas</h3></div><div class="round-most-wins"><span>TIME QUE MAIS VENCEU</span><strong>${escapeHtml(leaderText)}</strong><small>${leaders.length ? leaderWins : "Aguardando resultado"}</small></div></div><div class="round-results-grid">${results.map(item => `<article class="round-result-card ${leaders.includes(item) ? "leader" : ""}"><strong>${escapeHtml(item.team)}</strong><span><b>${item.wins}</b> V · <b>${item.losses}</b> D${item.draws ? ` · ${item.draws} E` : ""}</span><small>${item.goalsFor} gols feitos · ${item.goalsAgainst} sofridos</small></article>`).join("")}</div></section>`;
 }
-function roundPlayerStatsMarkup(roundId, compact = false) {
+function roundPlayerStats(roundId) {
   const totals = new Map();
   roundGames(roundId).filter(isCompletedGame).forEach(game => {
     game.stats.forEach(entry => {
@@ -1200,10 +1445,13 @@ function roundPlayerStatsMarkup(roundId, compact = false) {
       totals.set(entry.playerId, current);
     });
   });
-  const players = [...totals.entries()]
+  return [...totals.entries()]
     .map(([playerId, stats]) => ({ player: data.players.find(item => item.id === playerId), ...stats }))
     .filter(item => item.player && (item.goals || item.assists))
     .sort((a, b) => b.goals - a.goals || b.assists - a.assists || displayName(a.player).localeCompare(displayName(b.player), "pt-BR"));
+}
+function roundPlayerStatsMarkup(roundId, compact = false) {
+  const players = roundPlayerStats(roundId);
   if (!players.length) return "";
   return `<section class="round-player-stats ${compact ? "compact" : ""}"><div class="round-player-stats-heading"><div><p class="eyebrow">ESTATÍSTICAS DA RODADA</p><h3>Gols e assistências do dia</h3><small>Somatório de todos os confrontos desta rodada.</small></div></div><div class="round-player-stats-list">${players.map(({ player, goals, assists }) => `<article class="round-player-stat">${avatar(player)}<strong>${escapeHtml(displayName(player))}</strong><span><b>${goals}</b> ${goals === 1 ? "gol" : "gols"}</span><span><b>${assists}</b> ${assists === 1 ? "assistência" : "assistências"}</span></article>`).join("")}</div></section>`;
 }
@@ -1226,6 +1474,12 @@ function renderPublicRounds() {
   currentContainer.innerHTML = `<div class="round-public-heading"><span class="round-status ${currentRound.status}">${roundStatusLabel(currentRound).toUpperCase()}</span><div><p class="eyebrow">${roundLabel(currentRound).toUpperCase()}</p><h2>${formatDate(currentRound.date)}</h2><p>${escapeHtml(currentRound.place || DEFAULT_VENUE_NAME)} · ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</p>${venueMapLink("Abrir CT Caxangá no GPS")}</div></div><div class="round-games-list public-round-games">${games.length ? games.map(publicGameMarkup).join("") : `<div class="saved-game-empty">Os confrontos desta rodada ainda serão definidos.</div>`}</div>${roundPlayerStatsMarkup(currentRound.id)}`;
   currentContainer.insertAdjacentHTML("beforeend", roundHighlightsMarkup(currentRound.id));
   currentContainer.insertAdjacentHTML("beforeend", attendanceListMarkup(currentRound.id));
+  if (roundPlayerStats(currentRound.id).length) {
+    currentContainer.querySelector(".round-public-heading")?.insertAdjacentHTML(
+      "beforeend",
+      `<button class="button secondary round-daily-stats-button" data-share-daily-stats="${currentRound.id}" type="button">Estatísticas do dia <span>↗</span></button>`
+    );
+  }
   const historicalRounds = rounds.filter(round => round.id !== currentRound.id);
   historyContainer.innerHTML = historicalRounds.length ? historicalRounds.map(round => {
     const roundGames = data.games.filter(game => game.roundId === round.id).sort((a, b) => a.id.localeCompare(b.id));
@@ -1294,6 +1548,14 @@ function renderPublicRounds() {
   historyContainer.innerHTML = historicalRounds.length
     ? historicalRounds.map(publicRoundTimelineMarkup).join("")
     : `<div class="empty-state">As próximas rodadas finalizadas aparecerão aqui.</div>`;
+  historyContainer.querySelectorAll("[data-share-round]").forEach(button => {
+    const roundId = button.dataset.shareRound;
+    if (!roundPlayerStats(roundId).length) return;
+    button.insertAdjacentHTML(
+      "afterend",
+      `<button class="button secondary round-daily-stats-button" data-share-daily-stats="${roundId}" type="button">Estatísticas do dia <span>↗</span></button>`
+    );
+  });
 }
 function renderSavedGames() {
   const container = document.querySelector("#saved-games-list");
@@ -1700,6 +1962,14 @@ function renderAdminNotices() {
     const isArchived = notice.status === "archived";
     return `<article class="notice-admin-item${isArchived ? " is-archived" : ""}"><div class="notice-admin-copy"><span class="notice-category"><b>${info.icon}</b>${info.label}</span><strong>${escapeHtml(notice.title)}</strong><p>${noticeMessageMarkup(notice.message)}</p><small>${isArchived ? "Arquivado" : notice.pinned ? "Fixado no mural" : "Publicado"}${notice.expiresOn ? ` · Até ${formatDate(notice.expiresOn)}` : ""}</small></div><div class="notice-admin-actions"><button class="edit-notice" type="button" data-edit-notice="${notice.id}">Editar</button><button class="archive-notice" type="button" data-archive-notice="${notice.id}">${isArchived ? "Reativar" : "Arquivar"}</button></div></article>`;
   }).join("") : `<p class="adjustment-note">Nenhum aviso criado ainda. Publique o primeiro comunicado para ele aparecer na página inicial.</p>`;
+  list.querySelectorAll("[data-archive-notice]").forEach(archiveButton => {
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "delete-notice";
+    deleteButton.type = "button";
+    deleteButton.dataset.deleteNotice = archiveButton.dataset.archiveNotice;
+    deleteButton.textContent = "Excluir";
+    archiveButton.insertAdjacentElement("afterend", deleteButton);
+  });
 }
 function renderAdminHighlightClips() {
   const select = document.querySelector("#highlight-clip-player");
@@ -2737,6 +3007,7 @@ document.querySelectorAll("[data-close-director-edit]").forEach(button => button
 document.querySelectorAll("[data-close-athlete-profile]").forEach(button => button.addEventListener("click", closeAthleteProfileModal));
 document.querySelector("#admin-logout").addEventListener("click", async () => { await supabaseClient.auth.signOut(); await refreshAuthState(); showView("inicio"); toast("Sessão encerrada."); });
 document.querySelectorAll(".ranking-tab").forEach(button => button.addEventListener("click", () => { selectedRanking = button.dataset.ranking; renderRanking(); }));
+document.querySelector("#generate-ranking-art").addEventListener("click", () => openRankingShareModal(selectedRanking));
 document.querySelector("#player-search").addEventListener("input", event => renderPlayers(event.target.value));
 document.querySelector("#position-filters").addEventListener("click", event => {
   const button = event.target.closest("[data-position-filter]");
@@ -2773,6 +3044,11 @@ document.querySelector("#athletes-grid").addEventListener("click", event => {
   if (card) openAthleteProfile(card.dataset.openAthlete);
 });
 document.querySelector("#public-round-history").addEventListener("click", event => {
+  const dailyStatsButton = event.target.closest("[data-share-daily-stats]");
+  if (dailyStatsButton) {
+    openDailyStatsShareModal(dailyStatsButton.dataset.shareDailyStats);
+    return;
+  }
   const shareButton = event.target.closest("[data-share-round]");
   if (shareButton) {
     openShareRoundModal(shareButton.dataset.shareRound);
@@ -2786,12 +3062,20 @@ document.querySelector("#public-round-history").addEventListener("click", event 
   renderPublicRounds();
 });
 document.querySelector("#public-round-week").addEventListener("click", event => {
+  const dailyStatsButton = event.target.closest("[data-share-daily-stats]");
+  if (dailyStatsButton) {
+    openDailyStatsShareModal(dailyStatsButton.dataset.shareDailyStats);
+    return;
+  }
   const button = event.target.closest("[data-share-round]");
   if (button) openShareRoundModal(button.dataset.shareRound);
 });
 document.querySelectorAll("[data-close-share-round]").forEach(button => button.addEventListener("click", closeShareRoundModal));
 document.querySelector("#download-round-image").addEventListener("click", downloadRoundShareImage);
 document.querySelector("#share-round-image").addEventListener("click", shareRoundImage);
+document.querySelectorAll("[data-close-share-stats]").forEach(button => button.addEventListener("click", closeShareStatsModal));
+document.querySelector("#download-stats-image").addEventListener("click", downloadStatsShareImage);
+document.querySelector("#share-stats-image").addEventListener("click", shareStatsShareImage);
 document.querySelector("#player-photo").addEventListener("change", event => {
   const file = event.target.files[0];
   if (!file || !validatePlayerPhoto(file, event.target)) return;
@@ -3209,6 +3493,7 @@ document.querySelector("#cancel-notice-edit").addEventListener("click", resetNot
 document.querySelector("#notices-admin-list").addEventListener("click", async event => {
   const editButton = event.target.closest("[data-edit-notice]");
   const archiveButton = event.target.closest("[data-archive-notice]");
+  const deleteButton = event.target.closest("[data-delete-notice]");
   if (editButton) {
     if (!requireAdmin()) return;
     const notice = data.notices.find(item => item.id === editButton.dataset.editNotice);
@@ -3222,6 +3507,18 @@ document.querySelector("#notices-admin-list").addEventListener("click", async ev
     document.querySelector("#save-notice").innerHTML = `Salvar alterações <span>→</span>`;
     document.querySelector("#cancel-notice-edit").hidden = false;
     document.querySelector("#notice-form").scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  if (deleteButton) {
+    if (!requireAdmin()) return;
+    const notice = data.notices.find(item => item.id === deleteButton.dataset.deleteNotice);
+    if (!notice) return;
+    if (!confirm(`Excluir definitivamente o aviso “${notice.title}”? Esta ação não pode ser desfeita.`)) return;
+    const { error } = await supabaseClient.from("bulletin_notices").delete().eq("id", notice.id);
+    if (error) { toast(`Não foi possível excluir o aviso: ${error.message}`); return; }
+    if (document.querySelector("#notice-id").value === notice.id) resetNoticeForm();
+    await loadRemoteData();
+    toast("Aviso excluído definitivamente.");
     return;
   }
   if (!archiveButton || !requireAdmin()) return;

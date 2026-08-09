@@ -606,8 +606,26 @@ main {
   margin-bottom: 75px;
 }
 .ranking-title-row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
   padding-bottom: 19px;
   border-bottom: 1px solid var(--line);
+}
+.ranking-title-actions {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.ranking-share-button {
+  white-space: nowrap;
+}
+
+.round-daily-stats-button {
+  white-space: nowrap;
 }
 .ranking-title-row h2 {
   margin-top: 2px;
@@ -3742,6 +3760,22 @@ footer {
   border-color: rgba(255, 183, 91, 0.36);
   color: #ffdaa2;
 }
+
+.notice-admin-actions .delete-notice {
+  border-color: rgba(255, 104, 139, 0.52);
+  background: rgba(115, 20, 44, 0.3);
+  color: #ffc1d0;
+}
+
+.round-share-button {
+  font-size: 0;
+  white-space: nowrap;
+}
+
+.round-share-button::after {
+  content: "Gerar arte da rodada ↗";
+  font-size: 11px;
+}
 .round-highlight-clips {
   margin-top: 20px;
   padding-top: 18px;
@@ -5071,10 +5105,23 @@ footer {
   text-align: center;
 }
 @media (max-width: 580px) {
+  .ranking-title-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .ranking-title-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .ranking-share-button,
+  .round-daily-stats-button {
+    width: 100%;
+  }
   .round-public-heading {
     flex-wrap: wrap;
   }
-  .round-public-heading .round-share-button {
+  .round-public-heading .round-share-button,
+  .round-public-heading .round-daily-stats-button {
     width: 100%;
     margin-left: 0;
   }
