@@ -87,7 +87,10 @@
         <button class="nav-link" data-view-target="hall-da-fama" type="button">Hall da Fama</button>
         <button id="admin-access-button" class="nav-link" type="button"><span id="admin-nav-label">Entrar</span></button>
       </nav>
-      <div class="season-chip"><span></span> Temporada 2026</div>
+      <div class="season-switcher" aria-label="Selecionar temporada">
+        <span class="season-switcher-label">TEMPORADA</span>
+        <div id="season-selector" class="season-selector" role="group" aria-label="Temporadas disponíveis"></div>
+      </div>
     </header>
 
     <main id="main-content">
@@ -100,7 +103,7 @@
             </div>
             <p class="eyebrow">10 anos de amizade, resenha e diversão</p>
             <h1 id="hero-title">Galera da  <br /> <em>pelada</em></h1>
-            <p class="hero-text">veja todos os rankings da temporada 2026 artilheiro, garçom, craque, xerife e paredão </p>
+            <p id="hero-season-copy" class="hero-text">Veja todos os rankings da temporada 2026: artilheiro, garçom, craque, xerife e paredão.</p>
             <div class="hero-actions">
               <button class="button primary" data-view-target="rankings">Ver rankings <span>→</span></button>
               <button class="text-button" data-admin-access type="button">+ Lançar rodada</button>
@@ -110,7 +113,7 @@
         </div>
 
         <section class="section-wrap stat-strip" aria-label="Resumo da temporada">
-          <article><span class="stat-label">RODADAS</span><strong id="total-games">0</strong><small>em 2026</small></article>
+          <article><span class="stat-label">RODADAS</span><strong id="total-games">0</strong><small id="total-games-season">em 2026</small></article>
           <article><span class="stat-label">ATLETAS MENSALISTAS</span><strong id="total-monthly-players">0</strong><small><span id="total-goalkeepers">0</span> goleiros</small></article>
           <article><span class="stat-label">GOLS</span><strong id="total-goals">0</strong><small>marcados</small></article>
           <article><span class="stat-label">ASSISTÊNCIAS</span><strong id="total-assists">0</strong><small>na temporada</small></article>
@@ -159,7 +162,7 @@
             <div id="recent-games" class="recent-games"></div>
           </div>
           <div class="panel record-panel">
-            <div class="panel-heading"><h2>Recordes de 2026</h2><span class="mini-label">ATÉ AGORA</span></div>
+            <div class="panel-heading"><h2 id="records-season-title">Recordes de 2026</h2><span class="mini-label">ATÉ AGORA</span></div>
             <div id="records" class="record-list"></div>
           </div>
         </section>
@@ -168,18 +171,18 @@
       <section id="rodadas" class="view section-wrap" aria-labelledby="rounds-title">
         <div class="page-heading">
           <div><p class="eyebrow">SÁBADO É DIA DE JOGO</p><h2 id="rounds-title">Rodada da semana</h2><p>Acompanhe os confrontos, placares e escalações da Galera da Pelada.</p></div>
-          <span class="admin-badge">● TEMPORADA 2026</span>
+          <span id="rounds-season-badge" class="admin-badge">● TEMPORADA 2026</span>
         </div>
         <article id="public-round-week" class="round-public-panel"></article>
         <section class="round-public-history" aria-labelledby="round-history-title">
-          <div class="section-heading-row"><div><p class="eyebrow">TEMPORADA 2026</p><h2 id="round-history-title">Histórico de rodadas</h2></div></div>
+          <div class="section-heading-row"><div><p id="round-history-season" class="eyebrow">TEMPORADA 2026</p><h2 id="round-history-title">Histórico de rodadas</h2></div></div>
           <div id="public-round-history" class="public-round-history-list"></div>
         </section>
       </section>
 
       <section id="rankings" class="view section-wrap" aria-labelledby="ranking-title">
         <div class="page-heading">
-          <div><p class="eyebrow">TEMPORADA 2026</p><h2 id="ranking-title">Rankings da galera</h2><p>Os números acumulados de todas as rodadas.</p></div>
+          <div><p id="rankings-season" class="eyebrow">TEMPORADA 2026</p><h2 id="ranking-title">Rankings da galera</h2><p>Os números acumulados de todas as rodadas.</p></div>
           <button class="button primary" data-admin-access type="button">Lançar rodada <span>+</span></button>
         </div>
         <div class="ranking-tabs" role="tablist" aria-label="Tipo de ranking">
@@ -438,7 +441,7 @@
           </article>
 
           <article class="admin-card adjustment-card">
-            <div class="admin-card-heading"><span class="step">12</span><div><h2>Saldo histórico</h2><p>Informe o que já aconteceu em 2026 antes de usar o site nas rodadas de sábado.</p></div></div>
+            <div class="admin-card-heading"><span class="step">12</span><div><h2>Saldo histórico</h2><p id="historical-balance-help">Informe o que já aconteceu na temporada antes de usar o site nas rodadas de sábado.</p></div></div>
             <form id="adjustment-form" class="form-stack">
               <label>Atleta<select id="adjustment-player" required></select></label>
               <div class="adjustment-fields">
@@ -482,7 +485,7 @@
         <button class="login-close" type="button" data-close-player-edit aria-label="Fechar">×</button>
         <p class="eyebrow">GERENCIAR ATLETA</p>
         <h2 id="player-edit-title">Editar atleta</h2>
-        <p>Você pode corrigir os dados e definir o total desejado para a temporada 2026.</p>
+        <p id="player-edit-season-help">Você pode corrigir os dados e definir o total desejado para a temporada.</p>
         <form id="player-edit-form" class="form-stack player-edit-form">
           <input id="edit-player-id" type="hidden" />
           <section class="player-edit-section player-edit-identity" aria-labelledby="edit-player-data-title">
@@ -503,7 +506,7 @@
             </div>
           </section>
           <section class="player-edit-section player-edit-stats-section" aria-labelledby="edit-player-stats-title">
-            <div class="player-edit-section-heading"><div><strong id="edit-player-stats-title" class="form-subtitle">Estatísticas da temporada</strong><p class="form-help">As rodadas já registradas continuam preservadas.</p></div><small>Totais de 2026</small></div>
+            <div class="player-edit-section-heading"><div><strong id="edit-player-stats-title" class="form-subtitle">Estatísticas da temporada</strong><p class="form-help">As rodadas já registradas continuam preservadas.</p></div><small id="edit-player-season-total">Totais da temporada</small></div>
             <div class="adjustment-fields edit-stats-fields"><label>Jogos<input id="edit-player-games" type="number" min="0" value="0" inputmode="numeric" /></label><label>Gols<input id="edit-player-goals" type="number" min="0" value="0" inputmode="numeric" /></label><label>Assistências<input id="edit-player-assists" type="number" min="0" value="0" inputmode="numeric" /></label><label>Craque<input id="edit-player-craque" type="number" min="0" value="0" inputmode="numeric" /></label><label>Xerife<input id="edit-player-xerife" type="number" min="0" value="0" inputmode="numeric" /></label><label>Paredão<input id="edit-player-paredao" type="number" min="0" value="0" inputmode="numeric" /></label></div>
           </section>
           <div class="player-edit-actions"><button class="button secondary" type="button" data-close-player-edit>Cancelar</button><button class="button primary" type="submit">Salvar alterações <span>→</span></button></div>
