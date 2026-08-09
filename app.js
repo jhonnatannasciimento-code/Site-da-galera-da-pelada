@@ -1190,6 +1190,23 @@ function roundGamesSummaryMarkup(roundId, compact = false) {
   const leaderWins = highestWins === 1 ? "1 vitória" : `${highestWins} vitórias`;
   return `<section class="round-games-summary ${compact ? "compact" : ""}"><div class="round-games-summary-heading"><div><p class="eyebrow">JOGOS DA RODADA ${round.number}</p><h3>Vitórias e derrotas</h3></div><div class="round-most-wins"><span>TIME QUE MAIS VENCEU</span><strong>${escapeHtml(leaderText)}</strong><small>${leaders.length ? leaderWins : "Aguardando resultado"}</small></div></div><div class="round-results-grid">${results.map(item => `<article class="round-result-card ${leaders.includes(item) ? "leader" : ""}"><strong>${escapeHtml(item.team)}</strong><span><b>${item.wins}</b> V · <b>${item.losses}</b> D${item.draws ? ` · ${item.draws} E` : ""}</span><small>${item.goalsFor} gols feitos · ${item.goalsAgainst} sofridos</small></article>`).join("")}</div></section>`;
 }
+function roundPlayerStatsMarkup(roundId, compact = false) {
+  const totals = new Map();
+  roundGames(roundId).filter(isCompletedGame).forEach(game => {
+    game.stats.forEach(entry => {
+      const current = totals.get(entry.playerId) || { goals: 0, assists: 0 };
+      current.goals += number(entry.goals);
+      current.assists += number(entry.assists);
+      totals.set(entry.playerId, current);
+    });
+  });
+  const players = [...totals.entries()]
+    .map(([playerId, stats]) => ({ player: data.players.find(item => item.id === playerId), ...stats }))
+    .filter(item => item.player && (item.goals || item.assists))
+    .sort((a, b) => b.goals - a.goals || b.assists - a.assists || displayName(a.player).localeCompare(displayName(b.player), "pt-BR"));
+  if (!players.length) return "";
+  return `<section class="round-player-stats ${compact ? "compact" : ""}"><div class="round-player-stats-heading"><div><p class="eyebrow">ESTATÍSTICAS DA RODADA</p><h3>Gols e assistências do dia</h3><small>Somatório de todos os confrontos desta rodada.</small></div></div><div class="round-player-stats-list">${players.map(({ player, goals, assists }) => `<article class="round-player-stat">${avatar(player)}<strong>${escapeHtml(displayName(player))}</strong><span><b>${goals}</b> ${goals === 1 ? "gol" : "gols"}</span><span><b>${assists}</b> ${assists === 1 ? "assistência" : "assistências"}</span></article>`).join("")}</div></section>`;
+}
 function renderPublicRounds() {
   const currentContainer = document.querySelector("#public-round-week");
   const historyContainer = document.querySelector("#public-round-history");
@@ -1206,13 +1223,13 @@ function renderPublicRounds() {
     return;
   }
   const games = data.games.filter(game => game.roundId === currentRound.id).sort((a, b) => a.id.localeCompare(b.id));
-  currentContainer.innerHTML = `<div class="round-public-heading"><span class="round-status ${currentRound.status}">${roundStatusLabel(currentRound).toUpperCase()}</span><div><p class="eyebrow">${roundLabel(currentRound).toUpperCase()}</p><h2>${formatDate(currentRound.date)}</h2><p>${escapeHtml(currentRound.place || DEFAULT_VENUE_NAME)} · ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</p>${venueMapLink("Abrir CT Caxangá no GPS")}</div></div><div class="round-games-list public-round-games">${games.length ? games.map(publicGameMarkup).join("") : `<div class="saved-game-empty">Os confrontos desta rodada ainda serão definidos.</div>`}</div>`;
+  currentContainer.innerHTML = `<div class="round-public-heading"><span class="round-status ${currentRound.status}">${roundStatusLabel(currentRound).toUpperCase()}</span><div><p class="eyebrow">${roundLabel(currentRound).toUpperCase()}</p><h2>${formatDate(currentRound.date)}</h2><p>${escapeHtml(currentRound.place || DEFAULT_VENUE_NAME)} · ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</p>${venueMapLink("Abrir CT Caxangá no GPS")}</div></div><div class="round-games-list public-round-games">${games.length ? games.map(publicGameMarkup).join("") : `<div class="saved-game-empty">Os confrontos desta rodada ainda serão definidos.</div>`}</div>${roundPlayerStatsMarkup(currentRound.id)}`;
   currentContainer.insertAdjacentHTML("beforeend", roundHighlightsMarkup(currentRound.id));
   currentContainer.insertAdjacentHTML("beforeend", attendanceListMarkup(currentRound.id));
   const historicalRounds = rounds.filter(round => round.id !== currentRound.id);
   historyContainer.innerHTML = historicalRounds.length ? historicalRounds.map(round => {
     const roundGames = data.games.filter(game => game.roundId === round.id).sort((a, b) => a.id.localeCompare(b.id));
-    return `<article class="round-public-history-item"><div><span class="mini-label">${roundLabel(round).toUpperCase()} · ${roundStatusLabel(round).toUpperCase()}</span><strong>${formatDate(round.date)}</strong><small>${escapeHtml(round.place || DEFAULT_VENUE_NAME)} · ${roundGames.length} ${roundGames.length === 1 ? "confronto" : "confrontos"}</small>${venueMapLink("Abrir no GPS")}</div><div class="round-games-list">${roundGames.length ? roundGames.map(publicGameMarkup).join("") : `<div class="saved-game-empty">Nenhum confronto salvo.</div>`}</div></article>`;
+    return `<article class="round-public-history-item"><div><span class="mini-label">${roundLabel(round).toUpperCase()} · ${roundStatusLabel(round).toUpperCase()}</span><strong>${formatDate(round.date)}</strong><small>${escapeHtml(round.place || DEFAULT_VENUE_NAME)} · ${roundGames.length} ${roundGames.length === 1 ? "confronto" : "confrontos"}</small>${venueMapLink("Abrir no GPS")}</div><div class="round-games-list">${roundGames.length ? roundGames.map(publicGameMarkup).join("") : `<div class="saved-game-empty">Nenhum confronto salvo.</div>`}</div>${roundPlayerStatsMarkup(round.id, true)}</article>`;
   }).join("") : `<div class="empty-state">As próximas rodadas finalizadas aparecerão aqui.</div>`;
 }
 function gameResultMarkup(game) {
@@ -1254,7 +1271,7 @@ function publicRoundTimelineMarkup(round) {
     const winner = winnerSide === "home" ? game.home : winnerSide === "away" ? game.away : "Empate";
     return `<li class="round-timeline-game"><span>JOGO ${String(game.number || index + 1).padStart(2, "0")}</span><strong>${escapeHtml(game.home)} <b>${game.homeScore} \u00d7 ${game.awayScore}</b> ${escapeHtml(game.away)}</strong><small>${winnerSide ? `Vencedor: <b>${escapeHtml(winner)}</b> \u00b7 ${escapeHtml(resultLabel(game))}` : "Empate sem decis\u00e3o registrada"}</small></li>`;
   }).join("") : `<li class="round-timeline-empty">Nenhum confronto salvo nesta rodada.</li>`;
-  return `<article class="round-public-history-item round-timeline-item"><header class="round-timeline-heading"><div><span class="round-status ${round.status}">${roundStatusLabel(round).toUpperCase()}</span><p class="eyebrow">${roundLabel(round).toUpperCase()}</p><strong>${formatDate(round.date)}</strong><small>${escapeHtml(round.place || DEFAULT_VENUE_NAME)} \u00b7 ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</small></div><div class="round-timeline-actions"><div class="round-timeline-leader"><span>TIME COM MAIS VIT\u00d3RIAS</span><strong>${escapeHtml(leaderText)}</strong><small>${leaders.length ? `${highestWins} ${highestWins === 1 ? "vit\u00f3ria" : "vit\u00f3rias"}` : "Aguardando resultado"}</small></div><div class="round-timeline-buttons"><button class="button secondary round-share-button" data-share-round="${round.id}" type="button"${games.length ? "" : " disabled"}>Compartilhar rodada</button><button class="button secondary round-timeline-toggle" data-toggle-round-details="${round.id}" type="button" aria-expanded="${expanded}">${expanded ? "Ocultar detalhes" : "Ver detalhes"}</button></div></div></header><ol class="round-timeline-games">${gameRows}</ol><div class="round-public-details"${expanded ? "" : " hidden"}><div class="round-games-list">${games.map(publicGameMarkup).join("")}</div>${roundGamesSummaryMarkup(round.id, true)}${roundHighlightsMarkup(round.id, true)}${roundClipsSectionMarkup(round.id)}${attendanceListMarkup(round.id)}</div></article>`;
+  return `<article class="round-public-history-item round-timeline-item"><header class="round-timeline-heading"><div><span class="round-status ${round.status}">${roundStatusLabel(round).toUpperCase()}</span><p class="eyebrow">${roundLabel(round).toUpperCase()}</p><strong>${formatDate(round.date)}</strong><small>${escapeHtml(round.place || DEFAULT_VENUE_NAME)} \u00b7 ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</small></div><div class="round-timeline-actions"><div class="round-timeline-leader"><span>TIME COM MAIS VIT\u00d3RIAS</span><strong>${escapeHtml(leaderText)}</strong><small>${leaders.length ? `${highestWins} ${highestWins === 1 ? "vit\u00f3ria" : "vit\u00f3rias"}` : "Aguardando resultado"}</small></div><div class="round-timeline-buttons"><button class="button secondary round-share-button" data-share-round="${round.id}" type="button"${games.length ? "" : " disabled"}>Compartilhar rodada</button><button class="button secondary round-timeline-toggle" data-toggle-round-details="${round.id}" type="button" aria-expanded="${expanded}">${expanded ? "Ocultar detalhes" : "Ver detalhes"}</button></div></div></header><ol class="round-timeline-games">${gameRows}</ol><div class="round-public-details"${expanded ? "" : " hidden"}><div class="round-games-list">${games.map(publicGameMarkup).join("")}</div>${roundPlayerStatsMarkup(round.id, true)}${roundGamesSummaryMarkup(round.id, true)}${roundHighlightsMarkup(round.id, true)}${roundClipsSectionMarkup(round.id)}${attendanceListMarkup(round.id)}</div></article>`;
 }
 function renderPublicRounds() {
   const currentContainer = document.querySelector("#public-round-week");
@@ -1272,7 +1289,7 @@ function renderPublicRounds() {
     return;
   }
   const games = roundGames(currentRound.id).filter(isCompletedGame);
-  currentContainer.innerHTML = `<div class="round-public-heading"><span class="round-status ${currentRound.status}">${roundStatusLabel(currentRound).toUpperCase()}</span><div><p class="eyebrow">${roundLabel(currentRound).toUpperCase()}</p><h2>${formatDate(currentRound.date)}</h2><p>${escapeHtml(currentRound.place || DEFAULT_VENUE_NAME)} · ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</p>${venueMapLink("Abrir CT Caxangá no GPS")}</div><button class="button secondary round-share-button" data-share-round="${currentRound.id}" type="button"${games.length ? "" : " disabled"}>Compartilhar rodada <span>↗</span></button></div><div class="round-games-list public-round-games">${games.length ? games.map(publicGameMarkup).join("") : `<div class="saved-game-empty">Os confrontos desta rodada ainda serão definidos.</div>`}</div>${roundGamesSummaryMarkup(currentRound.id)}${roundHighlightsMarkup(currentRound.id)}${roundClipsSectionMarkup(currentRound.id)}${attendanceListMarkup(currentRound.id)}`;
+  currentContainer.innerHTML = `<div class="round-public-heading"><span class="round-status ${currentRound.status}">${roundStatusLabel(currentRound).toUpperCase()}</span><div><p class="eyebrow">${roundLabel(currentRound).toUpperCase()}</p><h2>${formatDate(currentRound.date)}</h2><p>${escapeHtml(currentRound.place || DEFAULT_VENUE_NAME)} · ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</p>${venueMapLink("Abrir CT Caxangá no GPS")}</div><button class="button secondary round-share-button" data-share-round="${currentRound.id}" type="button"${games.length ? "" : " disabled"}>Compartilhar rodada <span>↗</span></button></div><div class="round-games-list public-round-games">${games.length ? games.map(publicGameMarkup).join("") : `<div class="saved-game-empty">Os confrontos desta rodada ainda serão definidos.</div>`}</div>${roundPlayerStatsMarkup(currentRound.id)}${roundGamesSummaryMarkup(currentRound.id)}${roundHighlightsMarkup(currentRound.id)}${roundClipsSectionMarkup(currentRound.id)}${attendanceListMarkup(currentRound.id)}`;
   const historicalRounds = rounds.filter(round => round.id !== currentRound.id);
   historyContainer.innerHTML = historicalRounds.length
     ? historicalRounds.map(publicRoundTimelineMarkup).join("")
@@ -1283,7 +1300,7 @@ function renderSavedGames() {
   const activeRound = getActiveRound();
   if (activeRound) {
     const games = roundGames(activeRound.id);
-    container.innerHTML = `<section class="round-history active-round-history"><div class="round-history-heading"><div><span class="mini-label">${roundLabel(activeRound).toUpperCase()} · ${roundStatusLabel(activeRound).toUpperCase()}</span><strong>${games.length} ${games.length === 1 ? "confronto salvo" : "confrontos salvos"}</strong><small>Finalize um jogo para mantê-lo nesta lista. Use Editar para corrigir.</small></div></div><div class="round-games-list">${games.length ? games.map(savedGameMarkup).join("") : `<div class="saved-game-empty">Nenhum confronto salvo ainda. Monte os times e clique em Finalizar confronto.</div>`}</div></section>`;
+    container.innerHTML = `<section class="round-history active-round-history"><div class="round-history-heading"><div><span class="mini-label">${roundLabel(activeRound).toUpperCase()} · ${roundStatusLabel(activeRound).toUpperCase()}</span><strong>${games.length} ${games.length === 1 ? "confronto salvo" : "confrontos salvos"}</strong><small>Finalize um jogo para mantê-lo nesta lista. Use Editar para corrigir.</small></div></div><div class="round-games-list">${games.length ? games.map(savedGameMarkup).join("") : `<div class="saved-game-empty">Nenhum confronto salvo ainda. Monte os times e clique em Finalizar confronto.</div>`}</div>${roundPlayerStatsMarkup(activeRound.id, true)}</section>`;
     return;
   }
   const groups = [...data.rounds].sort((a, b) => b.number - a.number).map(round => ({
@@ -1295,7 +1312,7 @@ function renderSavedGames() {
   container.innerHTML = groups.length ? groups.map(group => {
     const { round, games } = group;
     if (!round) return `<section class="round-history legacy-history"><div class="round-history-heading"><div><span class="mini-label">REGISTROS ANTERIORES</span><strong>Confrontos sem rodada</strong><small>Partidas salvas antes do novo formato semanal.</small></div></div><div class="round-games-list">${games.map(savedGameMarkup).join("")}</div></section>`;
-    return `<section class="round-history ${round.id === activeRoundId ? "active-round-history" : ""}"><div class="round-history-heading"><div><span class="mini-label">${roundLabel(round).toUpperCase()} · ${roundStatusLabel(round).toUpperCase()}</span><strong>${formatDate(round.date)}</strong><small>${escapeHtml(round.place || "Local não informado")} · ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</small></div><button class="button secondary open-round" data-open-round="${round.id}" type="button">Abrir rodada</button></div><div class="round-games-list">${games.length ? games.map(savedGameMarkup).join("") : `<div class="saved-game-empty">Nenhum confronto salvo nesta rodada.</div>`}</div>${roundGamesSummaryMarkup(round.id, true)}</section>`;
+    return `<section class="round-history ${round.id === activeRoundId ? "active-round-history" : ""}"><div class="round-history-heading"><div><span class="mini-label">${roundLabel(round).toUpperCase()} · ${roundStatusLabel(round).toUpperCase()}</span><strong>${formatDate(round.date)}</strong><small>${escapeHtml(round.place || "Local não informado")} · ${games.length} ${games.length === 1 ? "confronto" : "confrontos"}</small></div><button class="button secondary open-round" data-open-round="${round.id}" type="button">Abrir rodada</button></div><div class="round-games-list">${games.length ? games.map(savedGameMarkup).join("") : `<div class="saved-game-empty">Nenhum confronto salvo nesta rodada.</div>`}</div>${roundPlayerStatsMarkup(round.id, true)}${roundGamesSummaryMarkup(round.id, true)}</section>`;
   }).join("") : `<div class="empty-state saved-games-empty">A Rodada 15 ainda não possui confrontos salvos.</div>`;
 }
 function roundParticipants(roundId) {
@@ -2014,6 +2031,7 @@ function renderRoundWeek() {
   if (!roundsAvailable) {
     summary.innerHTML = `<span class="round-status draft">AÇÃO NECESSÁRIA</span><p>Execute a migração 007 no Supabase para ativar as rodadas semanais.</p>`;
     finishButton.disabled = true;
+    finishButton.hidden = false;
     deleteButton.hidden = true;
     gameContext.textContent = "EXECUTE A MIGRAÇÃO 007 PARA ATIVAR AS RODADAS";
     return;
@@ -2025,6 +2043,7 @@ function renderRoundWeek() {
     const totalGames = data.games.filter(game => game.roundId === activeRound.id).length;
     summary.innerHTML = `<span class="round-status ${activeRound.status}">${roundStatusLabel(activeRound)}</span><p><strong>${roundLabel(activeRound)}</strong> · ${formatDate(activeRound.date)} · ${escapeHtml(activeRound.place || DEFAULT_VENUE_NAME)} · ${totalGames} ${totalGames === 1 ? "confronto salvo" : "confrontos salvos"}</p>`;
     finishButton.disabled = activeRound.status === "completed";
+    finishButton.hidden = activeRound.status === "completed";
     finishButton.textContent = `Finalizar ${roundLabel(activeRound)}`;
     deleteButton.hidden = false;
     deleteButton.disabled = false;
@@ -2036,6 +2055,7 @@ function renderRoundWeek() {
     roundPlace.value = DEFAULT_VENUE_NAME;
     summary.innerHTML = `<span class="round-status draft">PRÓXIMA RODADA</span><p>Preencha os dados e salve para abrir a ${roundLabel({ number: getNextRoundNumber() })}.</p>`;
     finishButton.disabled = true;
+    finishButton.hidden = false;
     finishButton.textContent = "Finalizar rodada";
     deleteButton.hidden = true;
     saveRoundButton.innerHTML = `Iniciar ${roundLabel({ number: getNextRoundNumber() })} <span>→</span>`;
@@ -2073,11 +2093,22 @@ function updateGameFormState() {
   const activeRound = getActiveRound();
   const submit = document.querySelector("#game-submit");
   const newGameButton = document.querySelector("#new-game-button");
+  const editorArea = document.querySelector("#game-editor-area");
+  const closedNotice = document.querySelector("#round-closed-notice");
+  const isCompletedRound = activeRound?.status === "completed";
+  const showEditor = !isCompletedRound || editing;
+  if (editorArea) editorArea.hidden = !showEditor;
+  if (closedNotice) {
+    closedNotice.hidden = !isCompletedRound || editing;
+    if (isCompletedRound && !editing) {
+      closedNotice.innerHTML = `<strong>${roundLabel(activeRound)} finalizada</strong><span>Não há confrontos pendentes. Os placares, estatísticas e destaques já estão salvos no histórico. Para corrigir um jogo, use o botão <b>Editar</b> na lista abaixo.</span>`;
+    }
+  }
   submit.innerHTML = editing ? "Salvar alterações <span>→</span>" : activeRound ? "Finalizar confronto <span>→</span>" : "Inicie a rodada para lançar confrontos <span>→</span>";
-  submit.disabled = !roundsAvailable || !attendanceAvailable || !rodizioAvailable || !goalEventsAvailable || (!editing && !activeRound);
-  newGameButton.disabled = false;
-  newGameButton.dataset.tooltip = !roundsAvailable ? "Execute a migração 007 para ativar as rodadas." : !attendanceAvailable ? "Execute a migração 008 para ativar a presença." : !rodizioAvailable ? "Execute a migração 009 para ativar o modo Rodízio." : !goalEventsAvailable ? "Execute a migração 010 para registrar gols e assistências." : !activeRound ? "Salve a Rodada da Semana primeiro." : "Adicionar novo confronto";
-  newGameButton.classList.toggle("needs-setup", !roundsAvailable || !attendanceAvailable || !rodizioAvailable || !goalEventsAvailable || !activeRound);
+  submit.disabled = !roundsAvailable || !attendanceAvailable || !rodizioAvailable || !goalEventsAvailable || (!editing && (!activeRound || isCompletedRound));
+  newGameButton.disabled = isCompletedRound;
+  newGameButton.dataset.tooltip = !roundsAvailable ? "Execute a migração 007 para ativar as rodadas." : !attendanceAvailable ? "Execute a migração 008 para ativar a presença." : !rodizioAvailable ? "Execute a migração 009 para ativar o modo Rodízio." : !goalEventsAvailable ? "Execute a migração 010 para registrar gols e assistências." : isCompletedRound ? "Esta rodada já foi finalizada." : !activeRound ? "Salve a Rodada da Semana primeiro." : "Adicionar novo confronto";
+  newGameButton.classList.toggle("needs-setup", !roundsAvailable || !attendanceAvailable || !rodizioAvailable || !goalEventsAvailable || !activeRound || isCompletedRound);
   const attendanceButton = document.querySelector("#close-attendance-button");
   if (attendanceButton) attendanceButton.disabled = !roundsAvailable || !attendanceAvailable || !activeRound;
   document.querySelector("#cancel-game-edit").hidden = !editing;
