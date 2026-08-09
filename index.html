@@ -192,7 +192,7 @@
           
         </div>
         <div class="ranking-panel">
-          <div class="ranking-title-row"><div><span id="ranking-kicker" class="eyebrow">GOLS MARCADOS</span><h2 id="ranking-name">Artilharia</h2></div><span id="ranking-update-label" class="mini-label">ATUALIZADO APÓS A ÚLTIMA RODADA</span></div>
+          <div class="ranking-title-row"><div><span id="ranking-kicker" class="eyebrow">GOLS MARCADOS</span><h2 id="ranking-name">Artilharia</h2></div><div class="ranking-title-actions"><span id="ranking-update-label" class="mini-label">ATUALIZADO APÓS A ÚLTIMA RODADA</span><button id="generate-ranking-art" class="button secondary ranking-share-button" type="button">Gerar Top 10: Artilharia</button></div></div>
           <div id="ranking-list" class="ranking-list"></div>
         </div>
         <div class="ranking-panel complete-ranking-panel">
@@ -546,9 +546,9 @@
       <div class="login-backdrop" data-close-share-round></div>
       <section class="login-card share-round-card" role="dialog" aria-modal="true" aria-labelledby="share-round-title">
         <button class="login-close" type="button" data-close-share-round aria-label="Fechar">×</button>
-        <p class="eyebrow">RESUMO VISUAL</p>
-        <h2 id="share-round-title">Compartilhar rodada</h2>
-        <p>Confira a arte antes de baixar ou enviar pelo celular.</p>
+        <p class="eyebrow">ARTE PARA REDES SOCIAIS</p>
+        <h2 id="share-round-title">Gerar arte da rodada</h2>
+        <p>Confira a imagem com placares e destaques antes de baixar ou compartilhar.</p>
         <div id="share-round-preview" class="share-round-preview" aria-live="polite">
           <span>Gerando imagem da rodada...</span>
         </div>
@@ -556,7 +556,22 @@
           <button id="download-round-image" class="button secondary" type="button" disabled>Baixar PNG</button>
           <button id="share-round-image" class="button primary" type="button" disabled>Compartilhar <span>↗</span></button>
         </div>
-        <p id="share-round-help" class="share-round-help">No celular, use Compartilhar para enviar ao WhatsApp, Instagram ou outro aplicativo.</p>
+        <p id="share-round-help" class="share-round-help">No celular, use Compartilhar e escolha WhatsApp, Instagram ou outro aplicativo. No computador, baixe o PNG para publicar.</p>
+      </section>
+    </div>
+    <div id="share-stats-modal" class="login-modal share-round-modal" hidden>
+      <div class="login-backdrop" data-close-share-stats></div>
+      <section class="login-card share-round-card" role="dialog" aria-modal="true" aria-labelledby="share-stats-title">
+        <button class="login-close" type="button" data-close-share-stats aria-label="Fechar">×</button>
+        <p class="eyebrow">ARTE PARA REDES SOCIAIS</p>
+        <h2 id="share-stats-title">Gerar arte de estatísticas</h2>
+        <p>Confira a imagem antes de baixar ou compartilhar.</p>
+        <div id="share-stats-preview" class="share-round-preview" aria-live="polite"><span>Gerando imagem...</span></div>
+        <div class="share-round-actions">
+          <button id="download-stats-image" class="button secondary" type="button" disabled>Baixar PNG</button>
+          <button id="share-stats-image" class="button primary" type="button" disabled>Compartilhar <span>↗</span></button>
+        </div>
+        <p class="share-round-help">No celular, use Compartilhar e escolha WhatsApp, Instagram ou outro aplicativo. No computador, baixe o PNG para publicar.</p>
       </section>
     </div>
     <footer class="site-footer">
