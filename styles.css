@@ -3427,6 +3427,28 @@ footer {
   border-top: 1px solid rgba(100, 199, 255, .18);
   background: rgba(1, 11, 28, .58);
 }
+
+.round-closed-notice {
+  display: grid;
+  gap: 6px;
+  padding: 18px 20px;
+  border: 1px solid rgba(77, 211, 255, .42);
+  background: linear-gradient(120deg, rgba(9, 51, 88, .88), rgba(5, 27, 56, .94));
+  color: var(--text);
+}
+
+.round-closed-notice strong {
+  color: var(--cyan);
+  font-family: "Barlow Condensed", sans-serif;
+  font-size: 1.35rem;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.round-closed-notice span {
+  color: var(--muted);
+  line-height: 1.55;
+}
 .public-regularization-panel summary {
   display: flex;
   min-height: 70px;
@@ -5723,6 +5745,66 @@ footer {
 .round-games-summary.compact h3 {
   font-size: 19px;
 }
+.round-player-stats {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid rgba(82, 220, 255, 0.28);
+  background: linear-gradient(135deg, rgba(4, 31, 68, 0.82), rgba(3, 18, 43, 0.72));
+}
+.round-player-stats-heading h3 {
+  margin: 3px 0 0;
+  color: #e7f7ff;
+  font: 700 24px/1 var(--font-display);
+  text-transform: uppercase;
+}
+.round-player-stats-heading small {
+  display: block;
+  margin-top: 6px;
+  color: #94b4d2;
+  font-size: 9px;
+}
+.round-player-stats-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+  margin-top: 13px;
+}
+.round-player-stat {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid rgba(103, 194, 255, 0.18);
+  background: rgba(1, 15, 36, 0.58);
+}
+.round-player-stat .avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 10px;
+}
+.round-player-stat > strong {
+  overflow: hidden;
+  color: #e6f6ff;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.round-player-stat > span {
+  color: #9db6d0;
+  font-size: 8px;
+  white-space: nowrap;
+}
+.round-player-stat > span b {
+  color: #5ce0ff;
+  font-size: 13px;
+}
+.round-player-stats.compact {
+  padding: 12px;
+}
+.round-player-stats.compact h3 {
+  font-size: 19px;
+}
 @media (max-width: 700px) {
   .presence-fields-header,
   .presence-player-row,
@@ -5752,6 +5834,9 @@ footer {
   .round-most-wins {
     width: fit-content;
     margin-top: 11px;
+  }
+  .round-player-stats-list {
+    grid-template-columns: 1fr;
   }
 }
 @media (max-width: 700px) {
