@@ -3635,6 +3635,17 @@ footer {
 .regularization-pending header > span { color: #382000; background: #ffb65b; }
 .regularization-daily { border-color: rgba(95, 211, 255, .3); }
 .regularization-daily header > span { color: #042a3b; background: #5fd3ff; }
+.attendance-request-feedback {
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 190, 92, .35);
+  background: rgba(83, 48, 4, .32);
+}
+.attendance-request-feedback strong { color: #ffd284; }
+.attendance-request-feedback p { margin: 4px 0 0; color: #d6c6a8; font-size: 11px; line-height: 1.5; }
+.attendance-request-feedback.request-approved { border-color: rgba(101, 228, 165, .35); background: rgba(7, 68, 48, .3); }
+.attendance-request-feedback.request-approved strong { color: #65e4a5; }
+.attendance-request-feedback.request-rejected { border-color: rgba(255, 118, 118, .35); background: rgba(86, 18, 24, .3); }
+.attendance-request-feedback.request-rejected strong { color: #ff9292; }
 .public-regularization-privacy {
   margin: 11px 0 0;
   color: #708da4;
@@ -6635,6 +6646,39 @@ footer {
 }
 
 /* Controle administrativo de mensalidades */
+.attendance-requests-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(95, 211, 255, .2);
+  background: rgba(5, 35, 72, .62);
+}
+.attendance-requests-summary strong { color: #f0f8ff; }
+.attendance-requests-summary span { color: #83a8c4; font-size: 11px; }
+.attendance-requests-list { display: grid; gap: 10px; }
+.attendance-request-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, .8fr) auto;
+  align-items: end;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid rgba(255, 190, 92, .25);
+  background: rgba(60, 38, 5, .2);
+}
+.attendance-request-player { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.attendance-request-player .avatar { width: 42px; height: 42px; }
+.attendance-request-player span { display: grid; gap: 3px; min-width: 0; }
+.attendance-request-player strong { color: #f1f8ff; }
+.attendance-request-player small { color: #8da9bd; font-size: 9px; }
+.attendance-request-row label { display: grid; gap: 6px; color: #8ba7bb; font-size: 9px; }
+.attendance-request-row input { width: 100%; }
+.attendance-request-actions { display: flex; gap: 7px; }
+@media (max-width: 820px) {
+  .attendance-request-row { grid-template-columns: 1fr; align-items: stretch; }
+  .attendance-request-actions .button { flex: 1; }
+}
 .monthly-fees-admin-card {
   grid-column: 1 / -1;
 }

@@ -24,6 +24,20 @@ Organizar as informações da pelada em um único lugar, permitindo que todos ac
 - Distinção entre mensalistas e diaristas, preservando o histórico da temporada.
 - Integração com Supabase para dados, login e fotos.
 
+## Notificações de solicitações de presença
+
+O envio de e-mail aos administradores usa uma função serverless da Vercel e a API da Resend. Configure estas variáveis somente no ambiente da Vercel:
+
+```text
+SUPABASE_SERVICE_ROLE_KEY
+RESEND_API_KEY
+ATTENDANCE_NOTIFICATION_EMAILS
+ATTENDANCE_FROM_EMAIL
+SITE_URL
+```
+
+`ATTENDANCE_NOTIFICATION_EMAILS` aceita vários destinatários separados por vírgula. Nunca exponha a `SUPABASE_SERVICE_ROLE_KEY` no navegador ou em arquivos versionados.
+
 ## Tecnologias utilizadas
 
 - HTML

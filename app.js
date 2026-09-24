@@ -26,7 +26,7 @@ const DEFAULT_DIRECTORS = [
   { id: "almir", slot: 2, name: "Almir", role: "Diretor Auxiliar", instagramUrl: "https://www.instagram.com/almir.claudino/", photo: null },
   { id: "jhonnatan", slot: 3, name: "Jhonnatan", role: "Diretor de Marketing", instagramUrl: "https://www.instagram.com/jhonnatan_nascimento/", photo: null }
 ];
-let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, seasonEligibility: {}, roundAwards: [], goalEvents: [], highlightClips: [], directors: [], notices: [], mediaItems: [], hallAwards: [], monthlyFees: [], publicRegularization: {}, auditLogs: [] };
+let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, seasonEligibility: {}, roundAwards: [], goalEvents: [], highlightClips: [], directors: [], notices: [], mediaItems: [], hallAwards: [], monthlyFees: [], attendanceRequests: [], publicRegularization: {}, auditLogs: [] };
 let selectedRanking = "goals";
 let selectedPositionFilter = "all";
 let selectedMediaType = "all";
@@ -56,6 +56,7 @@ let noticesAvailable = true;
 let mediaAvailable = true;
 let hallOfFameAvailable = true;
 let monthlyFeesAvailable = true;
+let attendanceRequestsAvailable = true;
 let publicRegularizationAvailable = true;
 let auditLogsAvailable = true;
 let gameDraftEntries = null;
@@ -72,6 +73,7 @@ const PUBLIC_ATTENDANCE_PLAYER_KEY = "gpfc-public-attendance-player";
 let publicAttendancePlayerId = localStorage.getItem(PUBLIC_ATTENDANCE_PLAYER_KEY) || "";
 let publicAttendanceChoice = "";
 let publicAttendanceRoundId = "";
+let publicAttendanceRequestStatus = "";
 let sharedRoundId = "";
 let sharedRoundBlob = null;
 let sharedRoundObjectUrl = "";
@@ -1702,6 +1704,22 @@ function publicAttendanceStatusInfo(status) {
     absent: { icon: "×", label: "Não vou", shortLabel: "Não vai" }
   }[status] || null;
 }
+function attendanceRequestStatusInfo(status) {
+  return {
+    pending: { className: "pending", title: "Aguardando aprovação", message: "Você está com uma pendência. Sua solicitação foi enviada à diretoria. Aguarde a aprovação de um administrador." },
+    approved: { className: "approved", title: "Solicitação aprovada", message: "A diretoria aprovou sua participação nesta rodada." },
+    rejected: { className: "rejected", title: "Solicitação não aprovada", message: "A diretoria não aprovou sua participação nesta rodada. Procure um administrador se precisar de mais informações." }
+  }[status] || null;
+}
+async function loadPublicAttendanceRequestStatus(roundId, playerId) {
+  publicAttendanceRequestStatus = "";
+  if (!roundId || !playerId) return;
+  const { data: status, error } = await supabaseClient.rpc("get_attendance_request_status", {
+    p_round_id: roundId,
+    p_player_id: playerId
+  });
+  if (!error) publicAttendanceRequestStatus = status || "";
+}
 function publicAttendanceRosterMarkup(attendance, players) {
   const groupLabels = { present: "Confirmados", unknown: "Em dúvida", absent: "Não vão" };
   const groups = ["present", "unknown", "absent"].map(status => {
@@ -1784,6 +1802,7 @@ function renderPublicAttendanceConfirmation() {
   if (publicAttendanceRoundId !== round.id) {
     publicAttendanceRoundId = round.id;
     publicAttendanceChoice = publicAttendancePlayerId ? attendance[publicAttendancePlayerId] || "" : "";
+    publicAttendanceRequestStatus = "";
   }
   if (!players.some(player => player.id === publicAttendancePlayerId)) {
     publicAttendancePlayerId = "";
@@ -1792,6 +1811,7 @@ function renderPublicAttendanceConfirmation() {
   const selectedPlayer = players.find(player => player.id === publicAttendancePlayerId);
   if (selectedPlayer && !publicAttendanceChoice) publicAttendanceChoice = attendance[selectedPlayer.id] || "";
   const currentInfo = selectedPlayer ? publicAttendanceStatusInfo(attendance[selectedPlayer.id]) : null;
+  const requestInfo = attendanceRequestStatusInfo(publicAttendanceRequestStatus);
   const totals = ["present", "unknown", "absent"].map(status => ({
     status,
     total: players.filter(player => attendance[player.id] === status).length,
@@ -1818,9 +1838,10 @@ function renderPublicAttendanceConfirmation() {
             </select>
           </label>
           <div class="public-attendance-choices" role="group" aria-label="Escolha sua resposta">${choiceButtons}</div>
+          ${requestInfo ? `<div class="attendance-request-feedback request-${requestInfo.className}" role="status"><strong>${requestInfo.title}</strong><p>${requestInfo.message}</p></div>` : ""}
           <div class="public-attendance-submit">
-            <p>${currentInfo ? `Resposta atual: <strong>${currentInfo.shortLabel}</strong>. Você pode alterá-la.` : "Escolha uma resposta e confirme."}</p>
-            <button class="button primary" type="submit"${!selectedPlayer || !publicAttendanceChoice ? " disabled" : ""}>Confirmar presença <span>→</span></button>
+            <p>${currentInfo ? `Resposta atual: <strong>${currentInfo.shortLabel}</strong>. Você pode alterá-la.` : requestInfo ? "Você ainda pode alterar sua resposta para “Em dúvida” ou “Não vou”." : "Escolha uma resposta e confirme."}</p>
+            <button class="button primary" type="submit"${!selectedPlayer || !publicAttendanceChoice ? " disabled" : ""}>${publicAttendanceChoice === "present" && publicAttendanceRequestStatus === "pending" ? "Reenviar solicitação" : "Confirmar presença"} <span>→</span></button>
           </div>
         </form>`}
     ${publicAttendanceRosterMarkup(attendance, players)}
@@ -2065,6 +2086,29 @@ function formatReferenceMonth(month) {
   if (!year || !monthNumber) return month;
   return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(year, monthNumber - 1, 1));
 }
+function renderAdminAttendanceRequests() {
+  const summary = document.querySelector("#attendance-requests-summary");
+  const list = document.querySelector("#attendance-requests-list");
+  if (!summary || !list) return;
+  if (!attendanceRequestsAvailable) {
+    summary.textContent = "Solicitações ainda não configuradas";
+    list.innerHTML = `<p class="adjustment-note">Execute a migração 025 no Supabase para ativar as aprovações.</p>`;
+    return;
+  }
+  const requests = [...data.attendanceRequests].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  const pending = requests.filter(item => item.status === "pending");
+  summary.innerHTML = `<strong>${pending.length} ${pending.length === 1 ? "solicitação pendente" : "solicitações pendentes"}</strong><span>${requests.length} registradas na temporada</span>`;
+  list.innerHTML = pending.length ? pending.map(item => {
+    const player = data.players.find(playerItem => playerItem.id === item.playerId);
+    const round = getRoundById(item.roundId);
+    if (!player || !round) return "";
+    return `<article class="attendance-request-row" data-attendance-request="${item.id}">
+      <div class="attendance-request-player">${avatar(player)}<span><strong>${escapeHtml(displayName(player))}</strong><small>${roundLabel(round)} · ${formatDate(round.date)} · ${escapeHtml(round.place || DEFAULT_VENUE_NAME)}</small></span></div>
+      <label>Observação para o histórico<input class="attendance-request-note" maxlength="300" placeholder="Opcional" /></label>
+      <div class="attendance-request-actions"><button class="button secondary reject-attendance-request" type="button">Recusar</button><button class="button primary approve-attendance-request" type="button">Aprovar</button></div>
+    </article>`;
+  }).join("") : `<div class="empty-state">Nenhuma solicitação aguardando análise.</div>`;
+}
 function renderAdminMonthlyFees() {
   const list = document.querySelector("#monthly-fees-list");
   const summary = document.querySelector("#monthly-fees-summary");
@@ -2113,6 +2157,7 @@ const AUDIT_ENTITY_INFO = {
   round_awards: { label: "Destaque da rodada", group: "statistics" },
   game_goal_events: { label: "Gol ou assistência", group: "statistics" },
   player_monthly_fees: { label: "Mensalidade", group: "financial" },
+  attendance_approval_requests: { label: "Solicitação de presença", group: "statistics" },
   bulletin_notices: { label: "Aviso", group: "notices" }
 };
 const AUDIT_ACTION_INFO = {
@@ -2141,7 +2186,7 @@ function auditRecordLabel(log) {
   if (log.entityType === "rounds") return `Rodada ${snapshot.round_number || ""}`.trim();
   if (log.entityType === "games") return snapshot.game_number ? `Jogo ${snapshot.game_number}` : "Confronto";
   if (log.entityType === "bulletin_notices") return snapshot.title || "Aviso";
-  if (["player_game_stats", "player_season_adjustments", "round_attendance", "round_awards", "game_goal_events", "player_monthly_fees"].includes(log.entityType)) return auditPlayerName(snapshot);
+  if (["player_game_stats", "player_season_adjustments", "round_attendance", "round_awards", "game_goal_events", "player_monthly_fees", "attendance_approval_requests"].includes(log.entityType)) return auditPlayerName(snapshot);
   return AUDIT_ENTITY_INFO[log.entityType]?.label || log.entityType;
 }
 function auditChangeSummary(log) {
@@ -2467,6 +2512,7 @@ function renderAll() {
   renderAdminNotices();
   renderAdminMedia();
   renderAdminHallOfFame();
+  renderAdminAttendanceRequests();
   renderAdminMonthlyFees();
   renderAdminAuditLogs();
   renderExportBackupSummary();
@@ -2502,7 +2548,7 @@ function toast(message) {
 }
 
 async function loadRemoteData(showMessage = false) {
-  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult, directorsResult, noticesResult, mediaItemsResult, mediaPlayersResult, hallAwardsResult, monthlyFeesResult, publicRegularizationResult, auditLogsResult, seasonRoundsResult, seasonAdjustmentsResult] = await Promise.all([
+  const [playersResult, gamesResult, statsResult, adjustmentsResult, roundsResult, attendanceResult, awardsResult, goalEventsResult, highlightClipsResult, directorsResult, noticesResult, mediaItemsResult, mediaPlayersResult, hallAwardsResult, monthlyFeesResult, attendanceRequestsResult, publicRegularizationResult, auditLogsResult, seasonRoundsResult, seasonAdjustmentsResult] = await Promise.all([
     supabaseClient.from("players").select("*").order("full_name"),
     supabaseClient.from("games").select("*").order("played_on", { ascending: false }),
     supabaseClient.from("player_game_stats").select("*"),
@@ -2519,6 +2565,9 @@ async function loadRemoteData(showMessage = false) {
     supabaseClient.from("hall_of_fame_awards").select("*").order("award_year", { ascending: false }),
     isAdmin
       ? supabaseClient.from("player_monthly_fees").select("*").order("reference_month", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+    isAdmin
+      ? supabaseClient.from("attendance_approval_requests").select("*").order("created_at", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
     supabaseClient.rpc("public_player_regularization", { p_season: SEASON }),
     isAdmin
@@ -2539,6 +2588,7 @@ async function loadRemoteData(showMessage = false) {
   mediaAvailable = !mediaItemsResult.error && !mediaPlayersResult.error;
   hallOfFameAvailable = !hallAwardsResult.error;
   monthlyFeesAvailable = !monthlyFeesResult.error;
+  attendanceRequestsAvailable = !attendanceRequestsResult.error;
   publicRegularizationAvailable = !publicRegularizationResult.error;
   auditLogsAvailable = !auditLogsResult.error;
   availableSeasons = [...new Set([
@@ -2625,6 +2675,18 @@ async function loadRemoteData(showMessage = false) {
       updatedBy: fee.updated_by,
       updatedAt: fee.updated_at
     })),
+    attendanceRequests: (attendanceRequestsResult.data || []).filter(item => selectedRoundIds.has(item.round_id)).map(item => ({
+      id: item.id,
+      roundId: item.round_id,
+      playerId: item.player_id,
+      status: item.status,
+      adminNote: item.admin_note,
+      reviewedBy: item.reviewed_by,
+      reviewedAt: item.reviewed_at,
+      notifiedAt: item.notified_at,
+      createdAt: item.created_at,
+      updatedAt: item.updated_at
+    })),
     publicRegularization: Object.fromEntries((publicRegularizationResult.data || []).map(item => [item.player_id, item.regularization_status])),
     auditLogs: (auditLogsResult.data || []).map(log => ({
       id: log.id,
@@ -2644,6 +2706,8 @@ async function loadRemoteData(showMessage = false) {
       .filter(round => round.status === "draft")
       .sort((a, b) => b.number - a.number)[0]?.id || null;
   }
+  const publicRound = getPublicAttendanceRound();
+  await loadPublicAttendanceRequestStatus(publicRound?.id, publicAttendancePlayerId);
   renderAll();
   if (showMessage) toast("Dados atualizados.");
 }
@@ -4277,6 +4341,32 @@ document.querySelector("#monthly-fees-list")?.addEventListener("change", event =
   }
 });
 
+document.querySelector("#attendance-requests-list")?.addEventListener("click", async event => {
+  const approveButton = event.target.closest(".approve-attendance-request");
+  const rejectButton = event.target.closest(".reject-attendance-request");
+  const button = approveButton || rejectButton;
+  if (!button || !requireAdmin()) return;
+  const row = button.closest("[data-attendance-request]");
+  const requestItem = data.attendanceRequests.find(item => item.id === row?.dataset.attendanceRequest);
+  if (!row || !requestItem) return;
+  const decision = approveButton ? "approved" : "rejected";
+  const player = data.players.find(item => item.id === requestItem.playerId);
+  if (!confirm(`${approveButton ? "Aprovar" : "Recusar"} a solicitação de ${displayName(player)}?`)) return;
+  row.querySelectorAll("button").forEach(item => { item.disabled = true; });
+  const { error } = await supabaseClient.rpc("review_attendance_request", {
+    p_request_id: requestItem.id,
+    p_decision: decision,
+    p_note: row.querySelector(".attendance-request-note")?.value.trim() || null
+  });
+  if (error) {
+    row.querySelectorAll("button").forEach(item => { item.disabled = false; });
+    toast(`Não foi possível analisar a solicitação: ${error.message}`);
+    return;
+  }
+  await loadRemoteData();
+  toast(approveButton ? `Presença de ${displayName(player)} aprovada.` : `Solicitação de ${displayName(player)} recusada.`);
+});
+
 document.querySelector("#audit-entity-filter")?.addEventListener("change", event => {
   selectedAuditEntity = event.target.value;
   renderAdminAuditLogs();
@@ -4365,13 +4455,14 @@ mobileMainNav?.addEventListener("click", event => {
   if (event.target.closest("button")) setMobileMenu(false);
 });
 
-document.querySelector("#public-attendance-panel")?.addEventListener("change", event => {
+document.querySelector("#public-attendance-panel")?.addEventListener("change", async event => {
   if (event.target.id !== "public-attendance-player") return;
   publicAttendancePlayerId = event.target.value;
   const round = getPublicAttendanceRound();
   publicAttendanceChoice = round && publicAttendancePlayerId
     ? data.attendance[round.id]?.[publicAttendancePlayerId] || ""
     : "";
+  await loadPublicAttendanceRequestStatus(round?.id, publicAttendancePlayerId);
   renderPublicAttendanceConfirmation();
 });
 
@@ -4401,18 +4492,30 @@ document.querySelector("#public-attendance-panel")?.addEventListener("submit", a
   const submit = event.target.querySelector('button[type="submit"]');
   submit.disabled = true;
   submit.textContent = "Salvando...";
-  const { error } = await supabaseClient.rpc("confirm_round_attendance", {
+  const { data: result, error } = await supabaseClient.rpc("request_round_attendance", {
     p_round_id: round.id,
     p_player_id: publicAttendancePlayerId,
     p_status: publicAttendanceChoice
   });
   if (error) {
     renderPublicAttendanceConfirmation();
-    const migrationHint = /function|schema cache/i.test(error.message) ? " Execute as migrações 017 e 021 no Supabase." : "";
+    const migrationHint = /function|schema cache/i.test(error.message) ? " Execute a migração 025 no Supabase." : "";
     toast(`Não foi possível confirmar: ${error.message}${migrationHint}`);
     return;
   }
   localStorage.setItem(PUBLIC_ATTENDANCE_PLAYER_KEY, publicAttendancePlayerId);
+  if (result?.result === "pending_approval") {
+    publicAttendanceRequestStatus = "pending";
+    renderPublicAttendanceConfirmation();
+    fetch("/api/attendance-request-notification", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requestId: result.request_id })
+    }).catch(notificationError => console.warn("Não foi possível notificar os administradores.", notificationError));
+    toast("Solicitação enviada. Aguarde a aprovação da diretoria.");
+    return;
+  }
+  publicAttendanceRequestStatus = "";
   data.attendance[round.id] ||= {};
   data.attendance[round.id][publicAttendancePlayerId] = publicAttendanceChoice;
   data.seasonEligibility[round.id] ||= {};
