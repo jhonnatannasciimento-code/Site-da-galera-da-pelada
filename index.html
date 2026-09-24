@@ -112,6 +112,17 @@
           <aside id="home-round-card" class="home-round-card" aria-live="polite"></aside>
         </div>
 
+        <section class="section-wrap public-attendance-section" aria-labelledby="public-attendance-title">
+          <div class="section-heading-row public-confirmation-heading">
+            <div>
+              <p class="eyebrow">LISTA OFICIAL</p>
+              <h2 id="public-attendance-title">Confirme sua presença</h2>
+            </div>
+            <span class="mini-label">PRÓXIMA PELADA</span>
+          </div>
+          <div id="public-attendance-panel" aria-live="polite"></div>
+        </section>
+
         <section class="section-wrap stat-strip" aria-label="Resumo da temporada">
           <article><span class="stat-label">RODADAS</span><strong id="total-games">0</strong><small id="total-games-season">em 2026</small></article>
           <article><span class="stat-label">ATLETAS MENSALISTAS</span><strong id="total-monthly-players">0</strong><small><span id="total-goalkeepers">0</span> goleiros</small></article>
@@ -125,17 +136,6 @@
             <span class="mini-label">AVISOS IMPORTANTES</span>
           </div>
           <div id="home-notices" class="notices-grid" aria-live="polite"></div>
-        </section>
-
-        <section class="section-wrap public-attendance-section" aria-labelledby="public-attendance-title">
-          <div class="section-heading-row public-confirmation-heading">
-            <div>
-              <p class="eyebrow">LISTA OFICIAL</p>
-              <h2 id="public-attendance-title">Confirme sua presença</h2>
-            </div>
-            <span class="mini-label">PRÓXIMA PELADA</span>
-          </div>
-          <div id="public-attendance-panel" aria-live="polite"></div>
         </section>
 
         <section class="section-wrap section-heading-row" aria-labelledby="week-title">
@@ -309,7 +309,7 @@
               </div>
               <section class="saved-games-section compact-saved-games" aria-label="Confrontos desta rodada"><div class="players-entry-heading"><div><strong>Confrontos desta rodada</strong><small>Finalize um jogo para ele aparecer aqui. Use Editar para corrigir.</small></div></div><div id="saved-games-list" class="saved-games-list"></div></section>
               <section id="lineup-builder" class="lineup-builder" aria-label="Montagem dos times"></section>
-              <div class="players-entry-heading"><div><strong>Confirmação de presença</strong><small>Marque quem compareceu. Somente esses atletas entram na montagem dos times.</small></div><div class="attendance-quick-actions"><span id="attendance-save-status" class="attendance-save-status" role="status"></span><button id="copy-last-attendance" class="button secondary" type="button">Copiar anterior</button><button id="mark-all-present" class="button secondary" type="button">Todos compareceram</button><button id="close-attendance-button" class="button secondary" type="button">Fechar e salvar lista</button></div></div>
+              <div class="players-entry-heading"><div><strong>Confirmação de presença</strong><small>Marque quem compareceu. As alterações são publicadas automaticamente na página inicial.</small></div><div class="attendance-quick-actions"><span id="attendance-save-status" class="attendance-save-status" role="status"></span><button id="copy-last-attendance" class="button secondary" type="button">Copiar anterior</button><button id="mark-all-present" class="button secondary" type="button">Todos compareceram</button><button id="close-attendance-button" class="button secondary" type="button">Fechar lista</button></div></div>
               <div id="game-player-fields" class="game-player-fields"></div>
             </form>
           </article>
