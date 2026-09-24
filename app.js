@@ -26,7 +26,7 @@ const DEFAULT_DIRECTORS = [
   { id: "almir", slot: 2, name: "Almir", role: "Diretor Auxiliar", instagramUrl: "https://www.instagram.com/almir.claudino/", photo: null },
   { id: "jhonnatan", slot: 3, name: "Jhonnatan", role: "Diretor de Marketing", instagramUrl: "https://www.instagram.com/jhonnatan_nascimento/", photo: null }
 ];
-let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, roundAwards: [], goalEvents: [], highlightClips: [], directors: [], notices: [], mediaItems: [], hallAwards: [], monthlyFees: [], publicRegularization: {}, auditLogs: [] };
+let data = { players: [], games: [], rounds: [], adjustments: {}, attendance: {}, seasonEligibility: {}, roundAwards: [], goalEvents: [], highlightClips: [], directors: [], notices: [], mediaItems: [], hallAwards: [], monthlyFees: [], publicRegularization: {}, auditLogs: [] };
 let selectedRanking = "goals";
 let selectedPositionFilter = "all";
 let selectedMediaType = "all";
@@ -184,8 +184,16 @@ function attendanceFor(playerId, fallbackEntry = null) {
 function isAttendanceClosed(round = getActiveRound()) {
   return Boolean(round?.attendanceClosed);
 }
+function membershipType(player) { return player?.membershipType === "daily" ? "daily" : "monthly"; }
+function membershipLabel(player) { return membershipType(player) === "daily" ? "Diarista" : "Mensalista"; }
+function countsForSeason(roundId, playerId) {
+  if (!roundId) return true;
+  const eligibility = data.seasonEligibility?.[roundId];
+  return !eligibility || !Object.prototype.hasOwnProperty.call(eligibility, playerId) || eligibility[playerId] !== false;
+}
 function getAttendanceHistory(playerId) {
-  return Object.values(data.attendance).reduce((history, roundStatuses) => {
+  return Object.entries(data.attendance).reduce((history, [roundId, roundStatuses]) => {
+    if (!countsForSeason(roundId, playerId)) return history;
     const status = roundStatuses?.[playerId];
     if (["present", "absent", "unknown"].includes(status)) history[status] += 1;
     return history;
@@ -323,10 +331,11 @@ function getGameTotals(playerId) {
   const totals = Object.fromEntries(STAT_FIELDS.map(field => [field, 0]));
   data.games.filter(isCompletedGame).forEach(game => game.stats.forEach(entry => {
     if (entry.playerId !== playerId) return;
+    if (!countsForSeason(game.roundId, playerId)) return;
     STAT_FIELDS.forEach(field => { totals[field] += number(entry[field]); });
   }));
   data.roundAwards.forEach(award => {
-    if (award.playerId === playerId) totals[award.category] += 1;
+    if (award.playerId === playerId && countsForSeason(award.roundId, playerId)) totals[award.category] += 1;
   });
   return totals;
 }
@@ -350,6 +359,7 @@ function getStats(excludeRoundId = null) {
     game.stats.forEach(entry => {
     const total = totals[entry.playerId];
     if (!total) return;
+    if (!countsForSeason(game.roundId, entry.playerId)) return;
     total.goals += number(entry.goals);
     total.assists += number(entry.assists);
     total.saves += number(entry.saves);
@@ -362,13 +372,14 @@ function getStats(excludeRoundId = null) {
   Object.entries(data.attendance).forEach(([roundId, statuses]) => {
     if (excludeRoundId && String(roundId) === String(excludeRoundId)) return;
     Object.entries(statuses).forEach(([playerId, status]) => {
+      if (!countsForSeason(roundId, playerId)) return;
       if (status === "present" && totals[playerId]) totals[playerId].games += 1;
     });
   });
   data.roundAwards.forEach(award => {
     if (excludeRoundId && String(award.roundId) === String(excludeRoundId)) return;
     const total = totals[award.playerId];
-    if (total) total[award.category] += 1;
+    if (total && countsForSeason(award.roundId, award.playerId)) total[award.category] += 1;
   });
   return Object.values(totals);
 }
@@ -377,6 +388,7 @@ function getAttendanceStats(excludeRoundId = null) {
     const totals = { player, present: 0, absent: 0, unknown: 0 };
     Object.entries(data.attendance).forEach(([roundId, statuses]) => {
       if (excludeRoundId && String(roundId) === String(excludeRoundId)) return;
+      if (!countsForSeason(roundId, player.id)) return;
       const status = statuses?.[player.id];
       if (["present", "absent", "unknown"].includes(status)) totals[status] += 1;
     });
@@ -434,12 +446,13 @@ function renderDirectors() {
 }
 function renderHome() {
   const stats = getStats();
+  const monthlyStats = stats.filter(item => membershipType(item.player) === "monthly");
   const latest = getLatestGame();
   const historicalLastRound = SEASON === 2026 ? LAST_HISTORICAL_ROUND : 0;
   const latestRoundNumber = Math.max(historicalLastRound, ...data.rounds.map(round => number(round.number)));
   document.querySelector("#total-games").textContent = latestRoundNumber;
-  document.querySelector("#total-monthly-players").textContent = stats.filter(item => !isGoalkeeper(item.player)).length;
-  document.querySelector("#total-goalkeepers").textContent = stats.filter(item => isGoalkeeper(item.player)).length;
+  document.querySelector("#total-monthly-players").textContent = monthlyStats.filter(item => !isGoalkeeper(item.player)).length;
+  document.querySelector("#total-goalkeepers").textContent = monthlyStats.filter(item => isGoalkeeper(item.player)).length;
   const goals = stats.reduce((sum, item) => sum + item.goals, 0);
   const assists = stats.reduce((sum, item) => sum + item.assists, 0);
   document.querySelector("#total-goals").textContent = goals;
@@ -530,7 +543,7 @@ function renderRanking() {
   renderCompleteRanking(getStats());
 }
 function renderCompleteRanking(stats) {
-  const items = [...stats].sort((a, b) =>
+  const items = stats.filter(item => membershipType(item.player) === "monthly" || item.games || item.goals || item.assists || item.craque || item.xerife || item.paredao).sort((a, b) =>
     b.goals - a.goals || b.assists - a.assists || b.craque - a.craque || b.xerife - a.xerife || b.paredao - a.paredao || b.games - a.games || displayName(a.player).localeCompare(displayName(b.player))
   );
   const attendanceByPlayer = new Map(getAttendanceStats().map(item => [item.player.id, item]));
@@ -602,7 +615,7 @@ function renderPlayers(filter = "") {
     const attendanceSummary = historyTotal
       ? `Presença: ${history.present} foi · ${history.absent} faltas · ${history.unknown} dúvidas`
       : "Histórico de presença será exibido nas próximas rodadas.";
-    return `<button class="athlete-card athlete-card-button" data-open-athlete="${item.player.id}" type="button" aria-label="Abrir perfil de ${escapeHtml(displayName(item.player))}"><div class="card-image">${avatar(item.player)}</div><div class="card-top"><span>GP • ${SEASON}</span><span class="athlete-number">#${shirtNumber(item.player)}</span></div>${leaderBadgesMarkup(item.player.id, leaders)}<div class="card-bottom"><h2>${escapeHtml(displayName(item.player))}</h2><p>${escapeHtml(item.player.position)}</p><div class="card-games"><strong>${item.games} ${item.games === 1 ? "jogo disputado" : "jogos disputados"}</strong><small>${attendanceSummary}</small></div>${cardStatsMarkup(item)}</div></button>`;
+    return `<button class="athlete-card athlete-card-button" data-open-athlete="${item.player.id}" type="button" aria-label="Abrir perfil de ${escapeHtml(displayName(item.player))}"><div class="card-image">${avatar(item.player)}</div><div class="card-top"><span>GP • ${SEASON}</span><span class="athlete-number">#${shirtNumber(item.player)}</span></div>${leaderBadgesMarkup(item.player.id, leaders)}<div class="card-bottom"><h2>${escapeHtml(displayName(item.player))}</h2><p>${escapeHtml(item.player.position)} · ${membershipLabel(item.player)}</p><div class="card-games"><strong>${item.games} ${item.games === 1 ? "jogo disputado" : "jogos disputados"}</strong><small>${attendanceSummary}</small></div>${cardStatsMarkup(item)}</div></button>`;
   }).join("") || `<div class="empty-state">Nenhum atleta cadastrado ainda.</div>`;
 }
 function teamOptions(selected = "") {
@@ -1725,6 +1738,12 @@ function publicRegularizationMarkup(players) {
       label: "Regularização pendente",
       description: "Procure a diretoria para regularizar.",
       icon: "!"
+    },
+    {
+      status: "daily",
+      label: "Diaristas",
+      description: "Participação acertada por rodada.",
+      icon: "D"
     }
   ];
   const groupMarkup = groups.map(group => {
@@ -1743,7 +1762,7 @@ function publicRegularizationMarkup(players) {
     <div class="public-regularization-content">
       <div class="public-regularization-heading"><div><span>ATUALIZAÇÃO DA DIRETORIA</span><h3>Próxima pelada</h3></div><small>Atualizado em ${updatedAt}</small></div>
       <div class="public-regularization-grid">${groupMarkup}</div>
-      <p class="public-regularization-privacy">São exibidos apenas os estados “Liberado” e “Regularização pendente”. Valores e detalhes financeiros permanecem privados.</p>
+      <p class="public-regularization-privacy">São exibidos apenas o tipo de vínculo e a situação de liberação. Valores e detalhes financeiros permanecem privados.</p>
     </div>
   </details>`;
 }
@@ -2016,7 +2035,7 @@ function renderAdminHighlightClips() {
 function renderAdminPlayers() {
   const container = document.querySelector("#admin-players-list");
   container.innerHTML = data.players.length ? data.players.map(player =>
-    `<article class="admin-player-item"><div>${avatar(player)}<span><strong>${escapeHtml(displayName(player))}</strong><small>#${shirtNumber(player)} · ${escapeHtml(player.position)}</small></span></div><span class="admin-player-actions"><button class="edit-player" data-edit-player="${player.id}" type="button">Editar</button><button class="delete-player" data-delete-player="${player.id}" type="button">Excluir</button></span></article>`
+    `<article class="admin-player-item"><div>${avatar(player)}<span><strong>${escapeHtml(displayName(player))}</strong><small>#${shirtNumber(player)} · ${escapeHtml(player.position)} · ${membershipLabel(player)}</small></span></div><span class="admin-player-actions"><button class="edit-player" data-edit-player="${player.id}" type="button">Editar</button><button class="delete-player" data-delete-player="${player.id}" type="button">Excluir</button></span></article>`
   ).join("") : `<div class="empty-state">Nenhum atleta para gerenciar.</div>`;
 }
 function renderAdminDirectors() {
@@ -2060,7 +2079,8 @@ function renderAdminMonthlyFees() {
     return;
   }
 
-  const entries = [...data.players]
+  const entries = data.players
+    .filter(player => membershipType(player) === "monthly")
     .sort((a, b) => displayName(a).localeCompare(displayName(b), "pt-BR"))
     .map(player => {
       const fee = monthlyFeeFor(player.id);
@@ -2101,7 +2121,7 @@ const AUDIT_ACTION_INFO = {
   DELETE: { label: "Excluiu", className: "deleted" }
 };
 const AUDIT_FIELD_LABELS = {
-  full_name: "nome", shirt_number: "camisa", position: "posição", photo_url: "foto",
+  full_name: "nome", shirt_number: "camisa", position: "posição", photo_url: "foto", membership_type: "vínculo",
   round_number: "número da rodada", played_on: "data", place: "local", status: "situação",
   home_team: "primeiro time", away_team: "segundo time", home_score: "placar do primeiro time",
   away_score: "placar do segundo time", result_method: "decisão", winner_side: "vencedor",
@@ -2109,7 +2129,7 @@ const AUDIT_FIELD_LABELS = {
   xerife: "xerife", paredao: "paredão", title: "título", message: "mensagem",
   category: "categoria", is_pinned: "fixação", expires_on: "validade", attendance_closed: "lista de presença",
   reference_month: "mês de referência", paid_at: "data do pagamento", notes: "observação",
-  payment_override: "liberação excepcional", payment_override_by: "administrador da liberação"
+  payment_override: "liberação excepcional", payment_override_by: "administrador da liberação", counts_for_season: "participação na temporada"
 };
 function auditPlayerName(snapshot) {
   const playerId = snapshot?.player_id || snapshot?.scorer_id;
@@ -2235,7 +2255,8 @@ function exportDataset(type) {
     return {
       filename: `gpfc-mensalidades-${selectedMonthlyFeeMonth}-${exportDateStamp()}.csv`,
       headers: ["mes_referencia", "atleta_id", "atleta", "camisa", "situacao", "pago_em", "observacao", "atualizado_em"],
-      rows: [...data.players]
+      rows: data.players
+        .filter(player => membershipType(player) === "monthly")
         .sort((a, b) => displayName(a).localeCompare(displayName(b), "pt-BR"))
         .map(player => {
           const fee = monthlyFeeFor(player.id);
@@ -2549,13 +2570,18 @@ async function loadRemoteData(showMessage = false) {
     return all;
   }, {});
   data = {
-    players: (playersResult.data || []).map(player => ({ id: player.id, name: player.full_name, shirtNumber: player.shirt_number, position: player.position, photo: player.photo_url })),
+    players: (playersResult.data || []).map(player => ({ id: player.id, name: player.full_name, shirtNumber: player.shirt_number, position: player.position, photo: player.photo_url, membershipType: player.membership_type || "monthly" })),
     games: selectedGames.map(game => ({ id: game.id, roundId: game.round_id, number: game.game_number, date: game.played_on, place: game.place, home: game.home_team, away: game.away_team, homeScore: game.home_score, awayScore: game.away_score, resultMethod: game.result_method, winnerSide: game.winner_side, status: game.status || "completed", stats: gameStats.get(game.id) || [] })),
     rounds: (roundsResult.data || []).map(round => ({ id: round.id, number: round.round_number, date: round.played_on, place: round.place, status: round.status, attendanceClosed: Boolean(round.attendance_closed) })),
     adjustments: Object.fromEntries((adjustmentsResult.data || []).map(adjustment => [adjustment.player_id, adjustment])),
     attendance: (attendanceResult.data || []).filter(item => selectedRoundIds.has(item.round_id)).reduce((all, item) => {
       all[item.round_id] ||= {};
       all[item.round_id][item.player_id] = item.status;
+      return all;
+    }, {}),
+    seasonEligibility: (attendanceResult.data || []).filter(item => selectedRoundIds.has(item.round_id)).reduce((all, item) => {
+      all[item.round_id] ||= {};
+      all[item.round_id][item.player_id] = item.counts_for_season !== false;
       return all;
     }, {}),
     roundAwards: (awardsResult.data || []).filter(award => selectedRoundIds.has(award.round_id)).map(award => ({ roundId: award.round_id, playerId: award.player_id, category: award.category })),
@@ -2630,6 +2656,7 @@ async function saveRoundAttendance(entries = captureGameDraftEntries(), { notify
       round_id: round.id,
       player_id: player.id,
       status: entries.get(player.id)?.attendance || attendanceFor(player.id),
+      counts_for_season: round.status === "draft" ? membershipType(player) === "monthly" : countsForSeason(round.id, player.id),
       updated_at: new Date().toISOString()
     })),
     { onConflict: "round_id,player_id" }
@@ -2934,6 +2961,7 @@ function openPlayerEdit(playerId) {
   document.querySelector("#edit-player-name").value = player.name;
   document.querySelector("#edit-player-shirt-number").value = player.shirtNumber ?? "";
   document.querySelector("#edit-player-position").value = player.position;
+  document.querySelector("#edit-player-membership-type").value = membershipType(player);
   ADJUSTMENT_FIELDS.forEach(field => { document.querySelector(`#edit-player-${field}`).value = number(stats[field]); });
   previewPhoto(document.querySelector("#edit-photo-preview"), player);
   pendingEditPhotoFile = null;
@@ -3247,7 +3275,8 @@ document.querySelector("#player-form").addEventListener("submit", async event =>
   const name = document.querySelector("#player-name").value.trim();
   const shirtNumber = number(document.querySelector("#player-shirt-number").value);
   const position = document.querySelector("#player-position").value;
-  const { data: player, error } = await supabaseClient.from("players").insert({ full_name: name, nickname: name.split(" ")[0], shirt_number: shirtNumber, position }).select().single();
+  const membership_type = document.querySelector("#player-membership-type").value;
+  const { data: player, error } = await supabaseClient.from("players").insert({ full_name: name, nickname: name.split(" ")[0], shirt_number: shirtNumber, position, membership_type }).select().single();
   if (error) { toast(`Não foi possível salvar: ${error.message}`); return; }
   try {
     const photoUrl = await uploadPlayerPhoto(player.id, pendingPhotoFile);
@@ -4176,6 +4205,7 @@ document.querySelector("#player-edit-form").addEventListener("submit", async eve
     nickname: name.split(" ")[0],
     shirt_number: number(document.querySelector("#edit-player-shirt-number").value),
     position: document.querySelector("#edit-player-position").value,
+    membership_type: document.querySelector("#edit-player-membership-type").value,
     photo_url: photoUrl
   }).eq("id", playerId);
   if (playerError) { toast(`Não foi possível editar o atleta: ${playerError.message}`); return; }
@@ -4385,6 +4415,8 @@ document.querySelector("#public-attendance-panel")?.addEventListener("submit", a
   localStorage.setItem(PUBLIC_ATTENDANCE_PLAYER_KEY, publicAttendancePlayerId);
   data.attendance[round.id] ||= {};
   data.attendance[round.id][publicAttendancePlayerId] = publicAttendanceChoice;
+  data.seasonEligibility[round.id] ||= {};
+  data.seasonEligibility[round.id][publicAttendancePlayerId] = membershipType(data.players.find(item => item.id === publicAttendancePlayerId)) === "monthly";
   renderAll();
   const player = data.players.find(item => item.id === publicAttendancePlayerId);
   toast(`Presença de ${displayName(player)} atualizada com sucesso.`);

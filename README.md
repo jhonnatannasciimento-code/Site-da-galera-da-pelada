@@ -21,6 +21,7 @@ Organizar as informações da pelada em um único lugar, permitindo que todos ac
 - Decisão de empate por pênaltis ou ficha, sem somar gols extras na artilharia.
 - Histórico de rodadas e linha do tempo dos confrontos.
 - Destaques da última rodada.
+- Distinção entre mensalistas e diaristas, preservando o histórico da temporada.
 - Integração com Supabase para dados, login e fotos.
 
 ## Tecnologias utilizadas

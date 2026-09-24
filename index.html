@@ -285,6 +285,7 @@
               </div>
               <label>Nome <input id="player-name" required maxlength="42" placeholder="Ex.: Edilson" /></label>
               <div class="form-row"><label>Número da camisa<input id="player-shirt-number" required type="number" min="0" max="99" inputmode="numeric" placeholder="Ex.: 10" /></label><label>Posição<select id="player-position"><option>Atacante</option><option>Meia</option><option>Zagueiro</option><option>Goleiro</option><option>Versátil</option></select></label></div>
+              <label>Vínculo com a pelada<select id="player-membership-type"><option value="monthly">Mensalista</option><option value="daily">Diarista</option></select><small class="form-help">Diaristas aparecem nas estatísticas da rodada, mas não acumulam novos números na temporada.</small></label>
               <button class="button primary" type="submit">Salvar atleta <span>→</span></button>
             </form>
           </article>
@@ -492,6 +493,7 @@
             <div class="player-edit-section-heading"><strong id="edit-player-data-title" class="form-subtitle">Dados do atleta</strong><small>Nome, camisa e posição</small></div>
             <label class="player-edit-name">Nome<input id="edit-player-name" required maxlength="42" /></label>
             <div class="form-row"><label>Número da camisa<input id="edit-player-shirt-number" required type="number" min="0" max="99" inputmode="numeric" /></label><label>Posição<select id="edit-player-position"><option>Atacante</option><option>Meia</option><option>Zagueiro</option><option>Goleiro</option><option>Versátil</option></select></label></div>
+            <label>Vínculo com a pelada<select id="edit-player-membership-type"><option value="monthly">Mensalista</option><option value="daily">Diarista</option></select><small class="form-help">A mudança vale para rodadas abertas e futuras. O histórico finalizado é preservado.</small></label>
           </section>
           <section class="player-edit-section player-edit-photo-section" aria-labelledby="edit-player-photo-title">
             <div class="player-edit-section-heading"><strong id="edit-player-photo-title" class="form-subtitle">Foto do atleta</strong><small>Opcional</small></div>
