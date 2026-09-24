@@ -3575,7 +3575,7 @@ footer {
 .public-regularization-heading > small { color: #789bb4; font-size: 8px; }
 .public-regularization-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 .public-regularization-group {
@@ -3633,6 +3633,8 @@ footer {
 .regularization-regular header > span { color: #062e21; background: #65e4a5; }
 .regularization-pending { border-color: rgba(255, 182, 91, .28); }
 .regularization-pending header > span { color: #382000; background: #ffb65b; }
+.regularization-daily { border-color: rgba(95, 211, 255, .3); }
+.regularization-daily header > span { color: #042a3b; background: #5fd3ff; }
 .public-regularization-privacy {
   margin: 11px 0 0;
   color: #708da4;
