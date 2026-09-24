@@ -1615,15 +1615,14 @@ function renderRoundAwards() {
   const garcons = getRoundStatLeaders(round.id, "assists");
   autoContainer.innerHTML = `<div class="auto-highlight"><span>ARTILHARIA</span><strong>${artilheiros.length ? artilheiros.map(item => `${escapeHtml(displayName(item.player))} (${item.value})`).join(" · ") : "Sem gols registrados"}</strong></div><div class="auto-highlight"><span>GARÇOM</span><strong>${garcons.length ? garcons.map(item => `${escapeHtml(displayName(item.player))} (${item.value})`).join(" · ") : "Sem assistências registradas"}</strong></div>`;
   const players = roundParticipants(round.id);
-  const savedCraque = getRoundAwardPlayers(round.id, "craque")[0]?.id || "";
+  const savedCraques = new Set(getRoundAwardPlayers(round.id, "craque").map(player => player.id));
   const savedXerifes = new Set(getRoundAwardPlayers(round.id, "xerife").map(player => player.id));
   const savedParedoes = new Set(getRoundAwardPlayers(round.id, "paredao").map(player => player.id));
-  const playerOptions = players.map(player => `<option value="${player.id}"${player.id === savedCraque ? " selected" : ""}>${escapeHtml(displayName(player))} · #${shirtNumber(player)}</option>`).join("");
   const checkboxList = (category, selected, onlyGoalkeepers = false) => {
     const list = players.filter(player => !onlyGoalkeepers || isGoalkeeper(player));
     return list.length ? `<div class="award-check-list">${list.map(player => `<label><input type="checkbox" data-award-category="${category}" value="${player.id}"${selected.has(player.id) ? " checked" : ""} /> ${escapeHtml(displayName(player))}</label>`).join("")}</div>` : `<p class="adjustment-note">${onlyGoalkeepers ? "Nenhum goleiro presente na rodada." : "Confirme a presença ou registre um jogo primeiro."}</p>`;
   };
-  manualContainer.innerHTML = `<label>Craque da rodada<select id="award-craque"><option value="">Selecione um atleta</option>${playerOptions}</select></label><div class="manual-award-group"><strong>Xerife da rodada <small>Escolha até 2 atletas</small></strong>${checkboxList("xerife", savedXerifes)}</div><div class="manual-award-group"><strong>Paredão da rodada <small>Escolha até 2 goleiros</small></strong>${checkboxList("paredao", savedParedoes, true)}</div>`;
+  manualContainer.innerHTML = `<div class="manual-award-group"><strong>Craque da rodada <small>Escolha até 2 atletas</small></strong>${checkboxList("craque", savedCraques)}</div><div class="manual-award-group"><strong>Xerife da rodada <small>Escolha até 2 atletas</small></strong>${checkboxList("xerife", savedXerifes)}</div><div class="manual-award-group"><strong>Paredão da rodada <small>Escolha até 2 goleiros</small></strong>${checkboxList("paredao", savedParedoes, true)}</div>`;
   submit.disabled = false;
 }
 function renderHomeHighlights() {
@@ -3472,7 +3471,7 @@ document.querySelector("#round-manual-awards").addEventListener("change", event 
   const checked = [...document.querySelectorAll(`[data-award-category="${category}"]:checked`)];
   if (checked.length <= 2) return;
   event.target.checked = false;
-  toast("Xerife e Paredão podem ter no máximo 2 atletas por rodada.");
+  toast("Craque, Xerife e Paredão podem ter no máximo 2 atletas por rodada.");
 });
 document.querySelector("#round-awards-form").addEventListener("submit", async event => {
   event.preventDefault();
@@ -3480,15 +3479,15 @@ document.querySelector("#round-awards-form").addEventListener("submit", async ev
   if (!rodizioAvailable) { toast("Execute a migração 009 no Supabase para salvar os destaques."); return; }
   const round = getActiveRound();
   if (!round) { toast("Abra uma rodada antes de salvar seus destaques."); return; }
-  const craque = document.querySelector("#award-craque")?.value;
-  if (!craque) { toast("Escolha o único Craque da rodada."); return; }
+  const craques = [...document.querySelectorAll('[data-award-category="craque"]:checked')].map(input => input.value);
+  if (!craques.length) { toast("Escolha pelo menos um Craque da rodada."); return; }
   const xerifes = [...document.querySelectorAll('[data-award-category="xerife"]:checked')].map(input => input.value);
   const paredoes = [...document.querySelectorAll('[data-award-category="paredao"]:checked')].map(input => input.value);
-  if (xerifes.length > 2 || paredoes.length > 2) { toast("Xerife e Paredão permitem até 2 atletas cada."); return; }
+  if (craques.length > 2 || xerifes.length > 2 || paredoes.length > 2) { toast("Craque, Xerife e Paredão permitem até 2 atletas cada."); return; }
   const { error: deleteError } = await supabaseClient.from("round_awards").delete().eq("round_id", round.id);
   if (deleteError) { toast(`Não foi possível atualizar os destaques: ${deleteError.message}`); return; }
   const awards = [
-    { round_id: round.id, player_id: craque, category: "craque" },
+    ...craques.map(playerId => ({ round_id: round.id, player_id: playerId, category: "craque" })),
     ...xerifes.map(playerId => ({ round_id: round.id, player_id: playerId, category: "xerife" })),
     ...paredoes.map(playerId => ({ round_id: round.id, player_id: playerId, category: "paredao" }))
   ];
