@@ -66,6 +66,9 @@ let goalEventCounter = 0;
 let manualScoreMode = false;
 let attendanceFilter = "all";
 let attendanceDirty = false;
+let attendanceSaveTimer = null;
+let attendanceSaveRevision = 0;
+let attendanceSaveQueue = Promise.resolve(true);
 let selectedMonthlyFeeMonth = `${SEASON}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
 let availableSeasons = [SEASON];
 let selectedMonthlyFeeStatus = "all";
@@ -884,7 +887,7 @@ function updateAttendanceControls() {
   }
   if (closeButton) {
     closeButton.hidden = !round;
-    closeButton.textContent = closed ? "Reabrir lista" : "Fechar e salvar lista";
+    closeButton.textContent = closed ? "Reabrir lista" : "Fechar lista";
     closeButton.disabled = !roundsAvailable || !attendanceAvailable;
   }
   [markAllButton, copyButton].forEach(button => {
@@ -1719,6 +1722,24 @@ async function loadPublicAttendanceRequestStatus(roundId, playerId) {
     p_player_id: playerId
   });
   if (!error) publicAttendanceRequestStatus = status || "";
+}
+async function refreshPublicAttendanceData() {
+  const round = getPublicAttendanceRound();
+  if (!round || document.hidden) return;
+  const { data: attendanceRows, error } = await supabaseClient
+    .from("round_attendance")
+    .select("player_id,status,counts_for_season")
+    .eq("round_id", round.id);
+  if (error) return;
+  data.attendance[round.id] = {};
+  data.seasonEligibility[round.id] = {};
+  (attendanceRows || []).forEach(item => {
+    data.attendance[round.id][item.player_id] = item.status;
+    data.seasonEligibility[round.id][item.player_id] = item.counts_for_season !== false;
+  });
+  await loadPublicAttendanceRequestStatus(round.id, publicAttendancePlayerId);
+  renderHome();
+  renderPublicAttendanceConfirmation();
 }
 function publicAttendanceRosterMarkup(attendance, players) {
   const groupLabels = { present: "Confirmados", unknown: "Em dúvida", absent: "Não vão" };
@@ -2726,7 +2747,39 @@ async function saveRoundAttendance(entries = captureGameDraftEntries(), { notify
     { onConflict: "round_id,player_id" }
   );
   if (error) { if (notify) toast(`Não foi possível salvar a presença: ${error.message}`); return false; }
+  data.attendance[round.id] ||= {};
+  data.seasonEligibility[round.id] ||= {};
+  data.players.forEach(player => {
+    data.attendance[round.id][player.id] = entries.get(player.id)?.attendance || attendanceFor(player.id);
+    data.seasonEligibility[round.id][player.id] = round.status === "draft" ? membershipType(player) === "monthly" : countsForSeason(round.id, player.id);
+  });
   return true;
+}
+function scheduleAttendanceSave() {
+  const round = getActiveRound();
+  if (!round || isAttendanceClosed(round)) return;
+  clearTimeout(attendanceSaveTimer);
+  const revision = ++attendanceSaveRevision;
+  const snapshot = new Map([...gameDraftEntries.entries()].map(([playerId, entry]) => [playerId, { ...entry }]));
+  const status = document.querySelector("#attendance-save-status");
+  if (status) {
+    status.textContent = "Salvando alterações...";
+    status.className = "attendance-save-status dirty";
+  }
+  attendanceSaveTimer = setTimeout(() => {
+    attendanceSaveQueue = attendanceSaveQueue.then(() => saveRoundAttendance(snapshot, { notify: false }));
+    attendanceSaveQueue.then(saved => {
+      if (!saved) {
+        updateAttendanceControls();
+        toast("Não foi possível sincronizar a presença. Tente novamente.");
+        return;
+      }
+      if (revision === attendanceSaveRevision) attendanceDirty = false;
+      updateAttendanceControls();
+      renderHome();
+      renderPublicAttendanceConfirmation();
+    });
+  }, 450);
 }
 async function refreshAuthState() {
   const { data: { session } } = await supabaseClient.auth.getSession();
@@ -3043,7 +3096,9 @@ function handleGameFieldsChange(event) {
     entry.team = "";
     gameGoalEvents = gameGoalEvents.filter(goal => goal.scorerId !== playerId && goal.assisterId !== playerId);
   }
+  attendanceDirty = true;
   renderGameFields();
+  scheduleAttendanceSave();
 }
 function handleTeamHeaderChange() {
   gameDraftEntries = captureGameDraftEntries();
@@ -3473,6 +3528,7 @@ document.querySelector("#game-player-fields").addEventListener("click", event =>
   attendanceDirty = true;
   attendanceFilter = "all";
   renderGameFields();
+  scheduleAttendanceSave();
 });
 document.querySelector("#mark-all-present").addEventListener("click", () => {
   if (!requireAdmin()) return;
@@ -3486,6 +3542,7 @@ document.querySelector("#mark-all-present").addEventListener("click", () => {
   attendanceDirty = true;
   attendanceFilter = "all";
   renderGameFields();
+  scheduleAttendanceSave();
   toast("Todos foram marcados como compareceram. Ajuste apenas quem faltou.");
 });
 document.querySelector("#copy-last-attendance").addEventListener("click", () => {
@@ -3510,6 +3567,7 @@ document.querySelector("#copy-last-attendance").addEventListener("click", () => 
   attendanceDirty = true;
   attendanceFilter = "all";
   renderGameFields();
+  scheduleAttendanceSave();
   toast(`Presença copiada da ${roundLabel(previous)}. Revise as alterações.`);
 });
 document.querySelectorAll("#team-home, #team-away").forEach(select => select.addEventListener("change", () => {
@@ -3542,6 +3600,9 @@ document.querySelector("#close-attendance-button").addEventListener("click", asy
     : "Reabrir a lista de presença? Isso permitirá novas alterações.";
   if (!confirm(confirmation)) return;
   if (willClose) {
+    clearTimeout(attendanceSaveTimer);
+    attendanceSaveRevision += 1;
+    await attendanceSaveQueue;
     gameDraftEntries = captureGameDraftEntries();
     const saved = await saveRoundAttendance(gameDraftEntries, { notify: false });
     if (!saved) { toast("Salve a presença antes de fechar a lista."); return; }
@@ -4389,6 +4450,9 @@ document.querySelector("#game-date").value = new Date().toISOString().slice(0, 1
   await refreshAuthState();
   await loadRemoteData();
   supabaseClient.auth.onAuthStateChange(() => { setTimeout(refreshAuthState, 0); });
+  setInterval(refreshPublicAttendanceData, 15000);
+  window.addEventListener("focus", refreshPublicAttendanceData);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshPublicAttendanceData(); });
 })();
 // COMPARTILHAR RODADA NO WHATSAPP - G.P.F.C
 function shareRoundOnWhatsApp() {
