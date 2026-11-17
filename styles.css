@@ -1887,6 +1887,10 @@ footer {
   border: 1px solid var(--line);
   background: rgba(2, 11, 27, 0.55);
 }
+.admin-player-item.is-archived {
+  border-color: rgba(145, 169, 200, 0.2);
+  opacity: 0.7;
+}
 .admin-player-item > div {
   display: flex;
   align-items: center;
