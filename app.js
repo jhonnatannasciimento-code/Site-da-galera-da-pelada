@@ -98,6 +98,12 @@ function initials(player) {
   return (player?.name || "GP").split(/\s+/).slice(0, 2).map(word => word[0]).join("").toUpperCase();
 }
 function displayName(player) { return player?.name || "Atleta"; }
+function isActivePlayer(player) { return player?.active !== false; }
+function activePlayers() { return data.players.filter(isActivePlayer); }
+function gameFormPlayers() {
+  const historicalIds = new Set((getEditingGame()?.stats || []).map(entry => entry.playerId));
+  return data.players.filter(player => isActivePlayer(player) || historicalIds.has(player.id));
+}
 function shirtNumber(player) {
   const value = player?.shirtNumber;
   if (value === 0 || value === "0") return "00";
@@ -439,8 +445,8 @@ function homeRoundCardMarkup() {
     return `<div class="home-round-card-top finished"><span class="home-round-kicker">RODADA FINALIZADA</span><span class="round-status completed">FINALIZADA</span></div><h2>${roundLabel(round)}</h2><p class="home-round-date">${formatDate(round.date)}</p><p class="home-round-summary">${summary}</p>${leaders.length ? `<p class="home-round-leader">Mais vitórias: <strong>${escapeHtml(leaders.join(" · "))}</strong></p>` : ""}<button class="button secondary home-round-action" data-view-target="rodadas" type="button">Ver resultados da rodada <span>→</span></button>`;
   }
   const attendance = data.attendance[round.id] || {};
-  const present = data.players.filter(player => attendance[player.id] === "present").length;
-  const unknown = data.players.filter(player => attendance[player.id] === "unknown").length;
+  const present = activePlayers().filter(player => attendance[player.id] === "present").length;
+  const unknown = activePlayers().filter(player => attendance[player.id] === "unknown").length;
   return `<div class="home-round-card-top"><span class="home-round-kicker">PRÓXIMA PELADA</span><span class="home-round-pulse"></span></div><h2>${roundLabel(round)}</h2><p class="home-round-date">${formatDate(round.date)} <span>· 17h às 19h</span></p><p class="home-round-place">${escapeHtml(round.place || DEFAULT_VENUE_NAME)}</p><p class="home-round-attendance"><strong>${present}</strong> confirmados <i>·</i> <strong>${unknown}</strong> em dúvida</p>${venueMapLink("Abrir CT Caxangá no GPS")}<button class="button secondary home-round-action" data-view-target="rodadas" type="button">Ver presença e confrontos <span>→</span></button>`;
 }
 
@@ -451,7 +457,7 @@ function renderDirectors() {
 }
 function renderHome() {
   const stats = getStats();
-  const monthlyStats = stats.filter(item => membershipType(item.player) === "monthly");
+  const monthlyStats = stats.filter(item => isActivePlayer(item.player) && membershipType(item.player) === "monthly");
   const latest = getLatestGame();
   const historicalLastRound = SEASON === 2026 ? LAST_HISTORICAL_ROUND : 0;
   const latestRoundNumber = Math.max(historicalLastRound, ...data.rounds.map(round => number(round.number)));
@@ -607,7 +613,7 @@ function openAthleteProfile(playerId) {
 }
 function renderPlayers(filter = "") {
   const text = filter.trim().toLocaleLowerCase("pt-BR");
-  const allPlayers = getStats();
+  const allPlayers = getStats().filter(item => isActivePlayer(item.player));
   const goalkeepers = allPlayers.filter(item => isGoalkeeper(item.player)).length;
   document.querySelector("#roster-summary").textContent = `${allPlayers.length} ${allPlayers.length === 1 ? "atleta" : "atletas"} no elenco, incluindo ${goalkeepers} ${goalkeepers === 1 ? "goleiro" : "goleiros"} na temporada ${SEASON}.`;
   document.querySelectorAll("[data-position-filter]").forEach(button => button.classList.toggle("active", button.dataset.positionFilter === selectedPositionFilter));
@@ -704,7 +710,7 @@ function renderLineupSummary(rows = []) {
 function renderGameFields() {
   const container = document.querySelector("#game-player-fields");
   const existing = new Map((getEditingGame()?.stats || []).map(entry => [entry.playerId, entry]));
-  const rows = data.players.map(player => {
+  const rows = gameFormPlayers().map(player => {
     const savedEntry = existing.get(player.id) || {};
     const draftEntry = gameDraftEntries?.get(player.id) || {};
     return { player, entry: { ...savedEntry, ...draftEntry, attendance: draftEntry.attendance || attendanceFor(player.id, savedEntry) } };
@@ -716,7 +722,7 @@ function renderGameFields() {
     const meta = attendanceMeta(status);
     return `<section class="attendance-section ${status}"><div class="attendance-section-heading"><span class="attendance-indicator ${status}" aria-hidden="true">${meta.icon}</span><strong>${meta.section}</strong><small>${items.length} ${items.length === 1 ? "atleta" : "atletas"}</small></div>${items.map(item => renderGamePlayerRow(item.player, item.entry)).join("")}</section>`;
   }).join("");
-  container.innerHTML = data.players.length ? header + sections : `<div class="empty-state">Cadastre pelo menos um atleta antes de lançar uma rodada.</div>`;
+  container.innerHTML = rows.length ? header + sections : `<div class="empty-state">Cadastre pelo menos um atleta antes de lançar uma rodada.</div>`;
   renderLineupSummary(rows);
 }
 function captureGameDraftEntries() {
@@ -733,7 +739,7 @@ function captureGameDraftEntries() {
 }
 function getGameDraftRows() {
   const existing = new Map((getEditingGame()?.stats || []).map(entry => [entry.playerId, entry]));
-  return data.players.map(player => {
+  return gameFormPlayers().map(player => {
     const savedEntry = existing.get(player.id) || {};
     const draftEntry = gameDraftEntries?.get(player.id) || {};
     const attendance = draftEntry.attendance || attendanceFor(player.id, savedEntry);
@@ -1819,7 +1825,7 @@ function renderPublicAttendanceConfirmation() {
   }
 
   const attendance = data.attendance[round.id] || {};
-  const players = [...data.players].sort((a, b) => displayName(a).localeCompare(displayName(b), "pt-BR"));
+  const players = [...activePlayers()].sort((a, b) => displayName(a).localeCompare(displayName(b), "pt-BR"));
   if (publicAttendanceRoundId !== round.id) {
     publicAttendanceRoundId = round.id;
     publicAttendanceChoice = publicAttendancePlayerId ? attendance[publicAttendancePlayerId] || "" : "";
@@ -2076,8 +2082,9 @@ function renderAdminHighlightClips() {
 }
 function renderAdminPlayers() {
   const container = document.querySelector("#admin-players-list");
-  container.innerHTML = data.players.length ? data.players.map(player =>
-    `<article class="admin-player-item"><div>${avatar(player)}<span><strong>${escapeHtml(displayName(player))}</strong><small>#${shirtNumber(player)} · ${escapeHtml(player.position)} · ${membershipLabel(player)}</small></span></div><span class="admin-player-actions"><button class="edit-player" data-edit-player="${player.id}" type="button">Editar</button><button class="delete-player" data-delete-player="${player.id}" type="button">Excluir</button></span></article>`
+  const players = [...data.players].sort((a, b) => Number(isActivePlayer(b)) - Number(isActivePlayer(a)) || displayName(a).localeCompare(displayName(b), "pt-BR"));
+  container.innerHTML = players.length ? players.map(player =>
+    `<article class="admin-player-item${isActivePlayer(player) ? "" : " is-archived"}"><div>${avatar(player)}<span><strong>${escapeHtml(displayName(player))}</strong><small>#${shirtNumber(player)} · ${escapeHtml(player.position)} · ${membershipLabel(player)}${isActivePlayer(player) ? "" : " · Arquivado"}</small></span></div><span class="admin-player-actions"><button class="edit-player" data-edit-player="${player.id}" type="button">Editar</button>${isActivePlayer(player) ? `<button class="delete-player" data-archive-player="${player.id}" type="button">Arquivar</button>` : `<button class="edit-player" data-reactivate-player="${player.id}" type="button">Reativar</button>`}</span></article>`
   ).join("") : `<div class="empty-state">Nenhum atleta para gerenciar.</div>`;
 }
 function renderAdminDirectors() {
@@ -2144,7 +2151,7 @@ function renderAdminMonthlyFees() {
     return;
   }
 
-  const entries = data.players
+  const entries = activePlayers()
     .filter(player => membershipType(player) === "monthly")
     .sort((a, b) => displayName(a).localeCompare(displayName(b), "pt-BR"))
     .map(player => {
@@ -2195,7 +2202,8 @@ const AUDIT_FIELD_LABELS = {
   xerife: "xerife", paredao: "paredão", title: "título", message: "mensagem",
   category: "categoria", is_pinned: "fixação", expires_on: "validade", attendance_closed: "lista de presença",
   reference_month: "mês de referência", paid_at: "data do pagamento", notes: "observação",
-  payment_override: "liberação excepcional", payment_override_by: "administrador da liberação", counts_for_season: "participação na temporada"
+  payment_override: "liberação excepcional", payment_override_by: "administrador da liberação", counts_for_season: "participação na temporada",
+  is_active: "situação no elenco"
 };
 function auditPlayerName(snapshot) {
   const playerId = snapshot?.player_id || snapshot?.scorer_id;
@@ -2641,7 +2649,7 @@ async function loadRemoteData(showMessage = false) {
     return all;
   }, {});
   data = {
-    players: (playersResult.data || []).map(player => ({ id: player.id, name: player.full_name, shirtNumber: player.shirt_number, position: player.position, photo: player.photo_url, membershipType: player.membership_type || "monthly" })),
+    players: (playersResult.data || []).map(player => ({ id: player.id, name: player.full_name, shirtNumber: player.shirt_number, position: player.position, photo: player.photo_url, membershipType: player.membership_type || "monthly", active: player.is_active !== false })),
     games: selectedGames.map(game => ({ id: game.id, roundId: game.round_id, number: game.game_number, date: game.played_on, place: game.place, home: game.home_team, away: game.away_team, homeScore: game.home_score, awayScore: game.away_score, resultMethod: game.result_method, winnerSide: game.winner_side, status: game.status || "completed", stats: gameStats.get(game.id) || [] })),
     rounds: (roundsResult.data || []).map(round => ({ id: round.id, number: round.round_number, date: round.played_on, place: round.place, status: round.status, attendanceClosed: Boolean(round.attendance_closed) })),
     adjustments: Object.fromEntries((adjustmentsResult.data || []).map(adjustment => [adjustment.player_id, adjustment])),
@@ -2736,8 +2744,9 @@ async function saveRoundAttendance(entries = captureGameDraftEntries(), { notify
   const round = getActiveRound();
   if (!round) { if (notify) toast("Salve ou abra a Rodada da Semana antes de confirmar presenças."); return false; }
   if (!attendanceAvailable) { if (notify) toast("Execute a migração 008 no Supabase para salvar a lista de presença."); return false; }
+  const playersToSave = data.players.filter(player => isActivePlayer(player) || entries.has(player.id));
   const { error } = await supabaseClient.from("round_attendance").upsert(
-    data.players.map(player => ({
+    playersToSave.map(player => ({
       round_id: round.id,
       player_id: player.id,
       status: entries.get(player.id)?.attendance || attendanceFor(player.id),
@@ -2749,7 +2758,7 @@ async function saveRoundAttendance(entries = captureGameDraftEntries(), { notify
   if (error) { if (notify) toast(`Não foi possível salvar a presença: ${error.message}`); return false; }
   data.attendance[round.id] ||= {};
   data.seasonEligibility[round.id] ||= {};
-  data.players.forEach(player => {
+  playersToSave.forEach(player => {
     data.attendance[round.id][player.id] = entries.get(player.id)?.attendance || attendanceFor(player.id);
     data.seasonEligibility[round.id][player.id] = round.status === "draft" ? membershipType(player) === "monthly" : countsForSeason(round.id, player.id);
   });
@@ -3003,7 +3012,7 @@ function prepareNextGameFromWinner() {
   const nextTeam = getNextTeamNumber(round?.id);
   fillTeamSelectors(winnerTeam, nextTeam === winnerTeam ? String(Math.min(TEAM_LIMIT, number(winnerTeam) + 1)) : nextTeam);
   const winnerIds = new Set(latest.stats.filter(entry => String(entry.team) === String(winnerTeam)).map(entry => entry.playerId));
-  gameDraftEntries = new Map(data.players.map(player => [player.id, {
+  gameDraftEntries = new Map(activePlayers().map(player => [player.id, {
     attendance: winnerIds.has(player.id) ? "present" : attendanceFor(player.id),
     team: winnerIds.has(player.id) ? winnerTeam : "",
     goals: 0,
@@ -3019,7 +3028,7 @@ function openGameEditor(gameId) {
   if (game.roundId) activeRoundId = game.roundId;
   editingGameId = game.id;
   const savedEntries = new Map(game.stats.map(entry => [entry.playerId, entry]));
-  gameDraftEntries = new Map(data.players.map(player => {
+  gameDraftEntries = new Map(gameFormPlayers().map(player => {
     const saved = savedEntries.get(player.id);
     return [player.id, {
       attendance: saved ? "present" : attendanceFor(player.id),
@@ -3494,7 +3503,7 @@ document.querySelector("#game-player-fields").addEventListener("change", event =
         return;
       }
     }
-    renderLineupSummary(data.players.map(playerItem => ({ player: playerItem, entry: gameDraftEntries.get(playerItem.id) || {} })));
+    renderLineupSummary(gameFormPlayers().map(playerItem => ({ player: playerItem, entry: gameDraftEntries.get(playerItem.id) || {} })));
     return;
   }
   if (!event.target.matches(".field-attendance")) return;
@@ -3562,7 +3571,7 @@ document.querySelector("#copy-last-attendance").addEventListener("click", () => 
     if (entry.attendance !== "present") entry.team = "";
     gameDraftEntries.set(player.id, entry);
   });
-  const presentIds = new Set(data.players.filter(player => gameDraftEntries.get(player.id)?.attendance === "present").map(player => player.id));
+  const presentIds = new Set(gameFormPlayers().filter(player => gameDraftEntries.get(player.id)?.attendance === "present").map(player => player.id));
   gameGoalEvents = gameGoalEvents.filter(goal => presentIds.has(goal.scorerId) && (!goal.assisterId || presentIds.has(goal.assisterId)));
   attendanceDirty = true;
   attendanceFilter = "all";
@@ -4264,14 +4273,21 @@ document.querySelector("#adjustment-form").addEventListener("submit", async even
 document.querySelector("#admin-players-list").addEventListener("click", async event => {
   const editButton = event.target.closest("[data-edit-player]");
   if (editButton) { openPlayerEdit(editButton.dataset.editPlayer); return; }
-  const deleteButton = event.target.closest("[data-delete-player]");
-  if (!deleteButton || !requireAdmin()) return;
-  const player = data.players.find(item => item.id === deleteButton.dataset.deletePlayer);
-  if (!confirm(`Excluir ${displayName(player)}? As estatísticas dele também serão removidas.`)) return;
-  const { error } = await supabaseClient.from("players").delete().eq("id", deleteButton.dataset.deletePlayer);
-  if (error) { toast(`Não foi possível excluir: ${error.message}`); return; }
+  const archiveButton = event.target.closest("[data-archive-player]");
+  const reactivateButton = event.target.closest("[data-reactivate-player]");
+  const actionButton = archiveButton || reactivateButton;
+  if (!actionButton || !requireAdmin()) return;
+  const playerId = archiveButton?.dataset.archivePlayer || reactivateButton.dataset.reactivatePlayer;
+  const player = data.players.find(item => item.id === playerId);
+  const archiving = Boolean(archiveButton);
+  const confirmation = archiving
+    ? `Arquivar ${displayName(player)}? Ele sairá do elenco e das próximas listas, mas todas as estatísticas serão preservadas.`
+    : `Reativar ${displayName(player)} no elenco?`;
+  if (!confirm(confirmation)) return;
+  const { error } = await supabaseClient.from("players").update({ is_active: !archiving }).eq("id", playerId);
+  if (error) { toast(`Não foi possível ${archiving ? "arquivar" : "reativar"}: ${error.message}`); return; }
   await loadRemoteData();
-  toast("Atleta excluído.");
+  toast(archiving ? "Atleta arquivado. O histórico foi preservado." : "Atleta reativado no elenco.");
 });
 document.querySelector("#admin-directors-list").addEventListener("click", event => {
   const button = event.target.closest("[data-edit-director]");
