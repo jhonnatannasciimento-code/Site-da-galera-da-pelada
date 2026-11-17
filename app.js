@@ -1306,7 +1306,7 @@ async function createRankingShareImage(metric) {
     context.textAlign = "right";
     context.fillStyle = "#62ddff";
     context.font = "800 35px 'Barlow Condensed', sans-serif";
-    context.fillText(String(number(item[metric])), 950, y + 41);
+    context.fillText(String(number(item[metric])), 850, y + 41);
     context.fillStyle = "#b9d5ec";
     context.font = "700 15px 'DM Sans', sans-serif";
     context.fillText(meta.unit, 990, y + 40);
