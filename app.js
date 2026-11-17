@@ -458,7 +458,6 @@ function renderDirectors() {
 function renderHome() {
   const stats = getStats();
   const monthlyStats = stats.filter(item => isActivePlayer(item.player) && membershipType(item.player) === "monthly");
-  const latest = getLatestGame();
   const historicalLastRound = SEASON === 2026 ? LAST_HISTORICAL_ROUND : 0;
   const latestRoundNumber = Math.max(historicalLastRound, ...data.rounds.map(round => number(round.number)));
   document.querySelector("#total-games").textContent = latestRoundNumber;
@@ -470,20 +469,6 @@ function renderHome() {
   document.querySelector("#total-assists").textContent = assists;
   document.querySelector("#home-round-card").innerHTML = homeRoundCardMarkup();
 
-  const latestStats = latest?.stats || [];
-  const awardPlayer = key => {
-    let entry = latestStats.find(stat => number(stat[key]) > 0);
-    if (!entry && key === "artilheiro") entry = [...latestStats].sort((a, b) => number(b.goals) - number(a.goals))[0];
-    return data.players.find(player => player.id === entry?.playerId);
-  };
-  document.querySelector("#weekly-awards").innerHTML = ["craque", "artilheiro", "xerife", "paredao"].map(key => {
-    const info = awardInfo(key);
-    const player = awardPlayer(key);
-    const stat = latestStats.find(entry => entry.playerId === player?.id) || {};
-    return `<article class="award-card"><div class="award-type"><span>${info.title.toUpperCase()}</span><span class="award-icon">${info.icon}</span></div>${player
-      ? `<h3>${escapeHtml(displayName(player))}</h3><small>${key === "artilheiro" ? `${stat.goals || 0} gols` : info.label}</small><div class="award-person">${avatar(player)}</div>`
-      : `<h3>—</h3><small>sem dados</small>`}</article>`;
-  }).join("");
   document.querySelector("#recent-games").innerHTML = [...data.games].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3).map(game =>
     `<article class="recent-game"><div class="date-box">${shortDate(game.date)}<br/><span>${escapeHtml(game.place || "Quadra")}</span></div><div><strong>${escapeHtml(game.home)} <span class="recent-score">${game.homeScore} × ${game.awayScore}</span> ${escapeHtml(game.away)}</strong><small>${game.stats.length} atletas em campo</small></div><span class="mini-label">RODADA</span></article>`
   ).join("") || `<div class="empty-state">Nenhuma rodada cadastrada.</div>`;
@@ -932,11 +917,12 @@ function savedGameMarkup(game, index) {
 function publicGameMarkup(game, index) {
   return `<article class="saved-game round-saved-game public-saved-game"><div class="saved-game-top"><div class="round-game-score"><span class="round-game-number">JOGO ${String(index + 1).padStart(2, "0")}</span><strong>${escapeHtml(game.home)} <b>${game.homeScore} × ${game.awayScore}</b> ${escapeHtml(game.away)}</strong></div></div><div class="saved-game-rosters"><section><span>${escapeHtml(game.home)}</span>${renderTeamRoster(game, "home")}</section><section><span>${escapeHtml(game.away)}</span>${renderTeamRoster(game, "away")}</section></div></article>`;
 }
-function highlightGroupMarkup(title, kicker, players, valueField = null) {
+function highlightGroupMarkup(title, kicker, players, valueLabels = null) {
   const visible = players.filter(Boolean);
   return `<article class="round-highlight-group"><span>${kicker}</span><strong>${title}</strong>${visible.length ? `<div class="round-highlight-players">${visible.map(item => {
     const player = item.player || item;
-    const value = valueField && item.value ? `<small>${item.value} ${valueField}</small>` : "";
+    const valueLabel = valueLabels && item.value ? (item.value === 1 ? valueLabels[0] : valueLabels[1]) : "";
+    const value = valueLabel ? `<small>${item.value} ${valueLabel}</small>` : "";
     return `<div>${avatar(player)}<p>${escapeHtml(displayName(player))}${value}</p></div>`;
   }).join("")}</div>` : `<p class="round-highlight-empty">Aguardando definição</p>`}</article>`;
 }
@@ -947,7 +933,7 @@ function roundHighlightsMarkup(roundId, compact = false, showTitle = true) {
   const xerife = getRoundAwardPlayers(roundId, "xerife");
   const paredao = getRoundAwardPlayers(roundId, "paredao");
   const title = showTitle ? `<div class="round-highlights-title"><p class="eyebrow">DESTAQUES DA RODADA</p><h3>Quem se destacou</h3></div>` : "";
-  return `<section class="round-highlights ${compact ? "compact" : ""}">${title}<div class="round-highlights-grid">${highlightGroupMarkup("Artilheiro", "GOLS", goals, "gols")}${highlightGroupMarkup("Garçom", "ASSISTÊNCIAS", assists, "assist.")}${highlightGroupMarkup("Craque", "ESCOLHA DA RODADA", craque)}${highlightGroupMarkup("Xerife", "DEFESA", xerife)}${highlightGroupMarkup("Paredão", "GOLEIROS", paredao)}</div></section>`;
+  return `<section class="round-highlights ${compact ? "compact" : ""}">${title}<div class="round-highlights-grid">${highlightGroupMarkup("Artilheiro", "GOLS", goals, ["gol", "gols"])}${highlightGroupMarkup("Garçom", "ASSISTÊNCIAS", assists, ["assist.", "assist."])}${highlightGroupMarkup("Craque", "ESCOLHA DA RODADA", craque)}${highlightGroupMarkup("Xerife", "DEFESA", xerife)}${highlightGroupMarkup("Paredão", "GOLEIROS", paredao)}</div></section>`;
 }
 function attendanceListMarkup(roundId) {
   if (!attendanceAvailable) return "";
